@@ -40,7 +40,8 @@ pkgs = c("dplyr", "tidyverse", "janitor", "sf"
          , "haven", "openxlsx", "MASS", "reticulate"
          , "future", "furrr", "data.table","leaflet"
          , "jtools", "tidyr", "ggspatial", "raster"
-         , "prettymapr", "viridis"
+         , "prettymapr", "viridis", "labelled"
+         , "writexl"
 )
 
 groundhog.library(pkgs, groundhog.day, ignore.deps = c("stringi", "fs"))
@@ -51,6 +52,22 @@ groundhog.library(pkgs, groundhog.day, ignore.deps = c("stringi", "fs"))
 ## Upload data -------
 
 data <- read_dta(here("data","OE_GC_2021.dta"))
+
+
+# Include labels
+
+labels <- read_csv(here("Data","labels.csv"), col_names = TRUE) %>% 
+  .[-1, ]
+
+labels_vector <- setNames(labels$Label, labels$Variable)
+
+for (var in names(labels_vector)) {
+  if (!is.null(data[[var]])) {
+    var_label(data[[var]]) <- labels_vector[var]
+  }
+}
+
+data <- data[-c(1:7), ]
 
 # Load shapefile
 shape_file <- st_read(here("data", "OE_FUA_SHAPEFILE", "OE_FUA_SHAPEFILE.shp")) %>% 
@@ -94,10 +111,12 @@ cellStats(fua, stat = 'mean')
 # })
 # names(reprojected_rasters) <- c("fua", "oe", "ucdb")
 
-fua <- projectRaster(fua, crs = st_crs(4326)$proj4string)
-crs(fua)  # +proj=wgs84
+fua <- projectRaster(ucdb, crs = st_crs(4326)$proj4string)
+# Warning message:
+#   # [project] 294 failed transformations 
+crs(ucdb)  # +proj=wgs84
 
-saveRDS(fua, here("Data", "Raster", "fua.rds"))
+# saveRDS(ucdb, here("Data", "Raster", "ucdb.rds"))
 
 
 # Get bounding box, crop and mask raster
@@ -151,7 +170,11 @@ ggsave(here("Figures", "colombo_urban_analysis_with_osm.png"), width = 15, heigh
 #            filter("Country" %in% "Sri Lanka")
 
 colnames(data)
-  
+require(labelled)
+
+# Get all variable labels
+var_label(data) #NO LABElS
+
 locations <- c("Colombo", "Sri Lanka", "Phnom Penh", "Cambodia", "Ho Chi Minh City", "Vietnam - Total",
                "Surabaya", "Indonesia", "Chittagong", "Port Louis", "Mauritius", "Auckland", "New Zealand - Total")
 cities <- c("Colombo", "Phnom Penh", "Ho Chi Minh City", "Surabaya", "Chittagong", "Port Louis")
@@ -277,3 +300,68 @@ ggplot(avg_data, aes(x = Year, y = EMPTOTT)) +
   theme_minimal() +
   scale_x_continuous(breaks = seq(min(data$Year), max(data$Year), by = 5)) +
   scale_y_continuous(n.breaks = 4))
+
+
+
+
+#### Request
+require(readr)
+
+show_in_excel <- function(.data){
+
+tmp <- paste0(tempfile(), ".csv")
+
+write_xlsx(.data, tmp)
+
+#fs:: file_show(path = tmp)
+browseURL(tmp) 
+}
+
+
+data %>% filter(Country=="Sri Lanka") %>% View(.)
+
+colnames(data) <- labels_vector[colnames(data)]
+
+data_colombo <- data %>% filter(Location=="Colombo") %>% 
+  dplyr::select(where(~ !all(is.na(.)))) 
+
+show_in_excel(data_colombo)
+
+write_xlsx(data_colombo, here("Data", "data_colombo.xlsx"), col_names = TRUE)
+
+data %>% filter(Location=="Colombo") %>% 
+  dplyr::select(where(~ !all(is.na(.)))) %>%
+  colnames(.)
+
+
+qs_rankings <- read_csv(here("Data", "qs_rankings_CCKSB.csv"))
+colnames(qs_rankings)[colnames(qs_rankings) == "...1"] <- "id"
+
+data_colombo2 <- qs_rankings %>% filter(location=="Sri Lanka") %>% 
+  dplyr::select(where(~ !all(is.na(.)))) 
+
+show_in_excel(data_colombo2)
+
+
+
+wb_doingbusiness <- read_csv(here("Data","WB_doingbusiness_CCKSB.csv"))
+
+data_colombo3 <- wb_doingbusiness %>% filter(Economy=="Sri Lanka") %>% 
+  dplyr::select(where(~ !all(is.na(.)))) 
+
+show_in_excel(data_colombo3)
+
+
+ucdb_full_vars <- read_csv(here("Data","UCDB_CCKSB_full_vars.csv"))
+data_colombo4 <- ucdb_full_vars %>% filter(CTR_MN_NM=="Sri Lanka") %>% 
+  dplyr::select(where(~ !all(is.na(.)))) %>% 
+  filter(loc_latin != "Sammanturai") # Row contains all missing data
+
+
+show_in_excel(data_colombo4)
+
+
+
+
+
+
