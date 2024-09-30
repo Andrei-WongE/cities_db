@@ -40,6 +40,7 @@ pkgs = c("dplyr", "tidyverse", "janitor", "sf"
          , "haven", "openxlsx", "MASS", "reticulate"
          , "future", "furrr", "data.table","leaflet"
          , "jtools", "tidyr", "ggspatial", "raster"
+         , "prettymapr", "viridis"
 )
 
 groundhog.library(pkgs, groundhog.day, ignore.deps = c("stringi", "fs"))
@@ -60,14 +61,16 @@ View(shape_file)
 require(ggspatial)
 
 ggplot(data = shape_file) +
-  geom_sf() +
-  theme_minimal() +
-  labs(title = "FUA Colombo",
+  annotation_map_tile(type = "osm", zoom = 10) +  # Add OpenStreetMap tiles
+  geom_sf(fill = NA, color = "blue", size = 3.5) +  # Make the shape file transparent  theme_minimal()
+  labs(title = "eFUA Colombo",
        subtitle = "Colombo, Sri Lanka",
        caption = "Source: Oxford Economics 2022") +
   annotation_north_arrow(location = "tr", which_north = "true", 
                          style = north_arrow_fancy_orienteering)  +
   annotation_scale(location = "bl", width_hint = 0.5)
+
+ggsave(here("Figures","colombo_FUA_OE.png"), width = 6, height = 4, dpi = 300)
 
 
 # Load raster files
@@ -75,23 +78,75 @@ fua <- raster(here("Data", "Raster","ghs_smod_fua.tif"))
 oe <- raster(here("Data", "Raster", "ghs_smod_oe.tif"))
 ucdb <- raster(here("Data", "Raster","ghs_smod_ucdb.tif"))
 
-crs(fua)
-values <- getValues(fua)
+crs(fua)  # +proj=moll
+# values <- getValues(fua)
 
 minValue(fua)
 maxValue(fua)
 cellStats(fua, stat = 'mean')
-plot(fua, main = "GHS SMOD FUA")
+#plot(fua, main = "GHS SMOD FUA")
+
+# Reproject raster to WGS 84
+# raster_files <- list(fua, oe, ucdb)
+# 
+# reprojected_rasters <- lapply(raster_files, function(raster) {
+#   projectRaster(raster, crs = st_crs(4326)$proj4string)
+# })
+# names(reprojected_rasters) <- c("fua", "oe", "ucdb")
+
+fua <- projectRaster(fua, crs = st_crs(4326)$proj4string)
+crs(fua)  # +proj=wgs84
+
+saveRDS(fua, here("Data", "Raster", "fua.rds"))
 
 
+# Get bounding box, crop and mask raster
+colombo_bbox <- st_bbox(c(xmin = 79.84, ymin = 6.80, xmax = 79.92, ymax = 6.98), crs = st_crs(4326))
 
-# Plot raster
-plot(fua$GHS_SMOD_P2030_GLOBE_R2022A_54009_1000_V1_0, aplhamain="GHS SMOD FUA")
-plot(oe$GHS_SMOD_P2030_GLOBE_R2022A_54009_1000_V1_0, main="GHS SMOD OE")
-plot(ucdb$GHS_SMOD_P2030_GLOBE_R2022A_54009_1000_V1_0, main="GHS SMOD UCDB")
+colombo_extent <- as(extent(colombo_bbox), "SpatialPolygons")
+crs(colombo_extent) <- crs(fua)  # Ensure the CRS matches
 
+fua_colombo <- crop(fua, colombo_extent) %>% mask(colombo_extent)
+oe_colombo <- crop(oe, colombo_extent) %>% mask(colombo_extent)
+ucdb_colombo <- crop(ucdb, colombo_extent) %>% mask(colombo_extent)
 
-# Filter locations
+# Function to convert raster to dataframe
+raster_to_df <- function(raster, name) {
+  df <- as.data.frame(raster, xy = TRUE)
+  names(df)[3] <- "value"
+  df$dataset <- name
+  return(df)
+}
+
+# Convert rasters to dataframes
+fua_df <- raster_to_df(fua_colombo, "FUA")
+oe_df <- raster_to_df(oe_colombo, "OE")
+ucdb_df <- raster_to_df(ucdb_colombo, "UCDB")
+
+# Combine dataframes
+all_data <- bind_rows(fua_df, oe_df, ucdb_df)
+
+# Create the plot
+(ggplot() +
+  annotation_map_tile(type = "osm", zoom = 12) +  # Add OpenStreetMap tiles
+  geom_raster(data = all_data, aes(x = x, y = y, fill = value), alpha = 0.7) +
+  facet_wrap(~ dataset, ncol = 3) +
+  scale_fill_viridis_c(option = "plasma") +
+  coord_sf(crs = st_crs(4326)) +
+  theme_minimal() +
+  labs(title = "Colombo Urban Area Analysis",
+       fill = "Value") +
+  annotation_scale(location = "bl", width_hint = 0.5) +
+  annotation_north_arrow(location = "tr", which_north = "true",
+                         pad_x = unit(0.1, "in"), pad_y = unit(0.1, "in"),
+                         style = north_arrow_fancy_orienteering) +
+  theme(axis.title = element_blank(),
+        legend.position = "bottom"))
+
+# Save the plot
+ggsave(here("Figures", "colombo_urban_analysis_with_osm.png"), width = 15, height = 5, dpi = 300)
+
+# Filter locations and years
 # country <- data %>%
 #            filter("Country" %in% "Sri Lanka")
 
@@ -103,10 +158,8 @@ cities <- c("Colombo", "Phnom Penh", "Ho Chi Minh City", "Surabaya", "Chittagong
 
 
 data <- data %>% filter(Location %in% locations) %>% 
-                 filter(Location %in% cities | Location == "")
-
-# Filter year
-data <- data %>% filter(Year == 2019 | Year == "")
+                 filter(Location %in% cities | Location == "") %>% 
+                 filter(Year == 2019 | Year == "")
 
 # Select columns
 columns_to_keep <- c("Year", "Location", "PEDYHHPUSN", "FCTOTPPPC", "FCTOTUSN", "FCTOTUSC", "EMPA", "EMPGIR_U",
@@ -171,7 +224,7 @@ data$Year <- as.numeric(data$Year)
 data_panel <- data %>% arrange(id_numeric, Year) %>% 
                  filter(!is.na(Year) & !is.na(EMPTOTT))
 
-# Total Employment
+### Total Employment-----
 
 # ggplot(data, aes(x = Year, y = EMPTOTT, group = Location, color = Location)) +
 #   geom_line() +
@@ -182,16 +235,25 @@ data_panel <- data %>% arrange(id_numeric, Year) %>%
 #   scale_x_continuous(breaks = seq(min(data$Year), max(data$Year), by = 5)) +
 #   scale_y_continuous(n.breaks = 4)
 
-(ggplot(data, aes(x = Year, y = EMPTOTT, color = Location)) +
+# Order of locations based on their last data point
+location_order <- data %>%
+  group_by(Location) %>%
+  summarise(TotalEmp = sum(EMPTOTT, na.rm = TRUE)) %>%
+  arrange(desc(TotalEmp)) %>%
+  pull(Location)
+
+(ggplot(data, aes(x = Year, y = EMPTOTT, color = factor(Location, levels = location_order))) +
   geom_point(size = 3) +
   labs(title = "Total Employment",
        x = "Year",
-       y = "Total Employment") +
+       y = "Total Employment",
+       color = "Location") +
   theme_minimal() +
   scale_x_continuous(breaks = seq(min(data$Year), max(data$Year), by = 5)) +
-  scale_y_continuous(n.breaks = 4))
+  scale_y_continuous(n.breaks = 4, labels = scales::comma) +
+  theme(legend.position = "right"))
 
-# Average total employment
+### Average total employment-----
 avg_data <- data %>% 
   group_by(Year) %>% 
   summarise(EMPTOTT = mean(EMPTOTT, na.rm = TRUE))
@@ -206,3 +268,12 @@ ggplot(avg_data, aes(x = Year, y = EMPTOTT)) +
   scale_x_continuous(breaks = seq(2000, 2040, by = 5)) +
   scale_y_continuous(breaks = seq(0, 8000, by = 2000))
 
+### Total GDP-----
+(ggplot(data, aes(x = Year, y = GDPTOTUSC, color = Location)) +
+  geom_point(size = 3) +
+  labs(title = "Total GDP",
+       x = "Year",
+       y = "Total GDP") +
+  theme_minimal() +
+  scale_x_continuous(breaks = seq(min(data$Year), max(data$Year), by = 5)) +
+  scale_y_continuous(n.breaks = 4))
