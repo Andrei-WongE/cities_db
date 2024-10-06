@@ -1,1 +1,1 @@
-Data fusion of different spatial and non-spatial databases at FUA, eFUA, and other urban definition level. 
+Data fusion of different spatial and non-spatial databases at FUA, eFUA, and other urban definition level. The objective is to create an automatized dataflow that allows to create benchmarking indicators at different urban defenition levels.
