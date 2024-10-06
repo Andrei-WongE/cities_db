@@ -173,9 +173,6 @@ ggsave(here("Figures", "colombo_urban_analysis_with_osm.png"), width = 15, heigh
 colnames(data)
 require(labelled)
 
-# Get all variable labels
-var_label(data) #NO LABElS
-
 locations <- c("Colombo", "Sri Lanka", "Phnom Penh", "Cambodia", "Ho Chi Minh City", "Vietnam - Total",
                "Surabaya", "Indonesia", "Chittagong", "Port Louis", "Mauritius", "Auckland", "New Zealand - Total")
 cities <- c("Colombo", "Phnom Penh", "Ho Chi Minh City", "Surabaya", "Chittagong", "Port Louis")
@@ -387,6 +384,9 @@ ppp_data <- WDI(indicator = "PA.NUS.PPP", start = 2011, end = 2022, extra = TRUE
 data_merged <- data_filtered %>%
   left_join(ppp_data, by = c("Location" = "capital", "Year" = "year"))
 
+# Get all variable labels
+var_label(data_merged) %>% View()
+
 # Calculate real GDP per capita adjusted for PPP
 data_merged <- data_merged %>%
   mutate(GDPTOTPPPC = as.numeric(GDPTOTPPPC),
@@ -457,7 +457,7 @@ p2 + geom_text_repel(data = data_merged %>% group_by(Location, category_var) %>%
                     hjust = 0,
                     segment.color = "grey50")
 
-ggsave(filename = here::here("Figures", "R_GDP_PPP.png"), plot = p2, width = 8, height = 6)
+ggsave(filename = here::here("Figures", "EMP_WA_POP.png"), plot = p2, width = 8, height = 6)
 
 # Average household personal disposable income, real, PPP$
 label_tothhincome <- attr(data_merged$PEDYHHPPPPC, "label")
@@ -475,7 +475,7 @@ data_merged <- data_merged %>%
 #        y = "Average Household Income PPP") +
 #   theme_minimal()
 
-p <- ggplot(data_merged, aes(x = Year, y = Avg_Household_Income_PPP, color = category_var, group = interaction(Location, category_var))) +
+p3 <- ggplot(data_merged, aes(x = Year, y = Avg_Household_Income_PPP, color = category_var, group = interaction(Location, category_var))) +
   geom_line(size = 1.5) +  # Increase the line width
   geom_point() +
   scale_color_manual(values = wes_palette("Zissou1", n = length(unique(data_merged$category_var)), type = "continuous")) +
@@ -485,19 +485,20 @@ p <- ggplot(data_merged, aes(x = Year, y = Avg_Household_Income_PPP, color = cat
   theme_minimal()
 
 # Add labels at the end of line
-p + geom_text_repel(data = data_merged %>% group_by(Location, category_var) %>% filter(Year == max(Year)),
+p3 + geom_text_repel(data = data_merged %>% group_by(Location, category_var) %>% filter(Year == max(Year)),
                     aes(label = Location),
                     nudge_x = 1,  # Adjust this value to move the labels further to the right
                     direction = "y",
                     hjust = 0,
                     segment.color = "grey50")
 
+ggsave(filename = here::here("Figures", "AV_HH_DINC.png"), plot = p3, width = 8, height = 6)
 
-# Calculate Labor Force Participation Rate
+# Calculate Labor Force Participation Rate FALTA!!!!!
 data_merged <- data_merged %>%
   mutate(Labor_Force_Participation_Rate = Labor_Force / Working_Age_Population * 100)
 
-# Calculate Employment in High-Tech Industries as a Pct of total employment
+# Calculate Employment in High-Tech Industries as a Pct of total employment FALTA!!!!!
 data_filtered <-   data_merged %>% 
   dplyr::select(starts_with("EMP")) %>% 
   colnames()
@@ -510,16 +511,53 @@ map(c("EMPA", "EMPGIR_U", "EMPK_N", "EMPB_F", "EMPO_Q", "EMPTOTT", "EMPHJ"),
 data_merged <- data_merged %>%
   mutate(High_Tech_Employment_Pct = High_Tech_Employment / Total_Employment * 100)
 
-# Calculate Industrial Output per capita
-data_merged <- data_merged %>%
-  mutate(Industrial_Output_Per_Capita = Industrial_Output / Population)
+# Consumer spending, PPP, real
+map(c("FC03PPPC", "FC08PPPC", "FC01PPPC", "FC06PPPC", "FC04PPPC", "FC124PPPC"),
+    ~ attr(data_merged[[.x]], "label"))
 
-# Calculate Service Sector Output per capita
 data_merged <- data_merged %>%
-  mutate(Service_Sector_Output_Per_Capita = Service_Sector_Output / Population)
+  mutate(across(c(FC03PPPC
+                  , FC08PPPC
+                  , FC01PPPC
+                  , FC06PPPC
+                  , FC04PPPC
+                  , FC124PPPC
+                  , FCTOTPPPC), as.numeric)) %>%
+  mutate(
+    Clothing_footwear = FC03PPPC / FCTOTPPPC,
+    Comm_goods_services = FC08PPPC / FCTOTPPPC,
+    Food_non_alc_services = FC01PPPC / FCTOTPPPC,
+    Health_goods_services = FC06PPPC / FCTOTPPPC,
+    Housing_utilities = FC04PPPC / FCTOTPPPC,
+    Social_protection = FC124PPPC / FCTOTPPPC
+  )
+
+columns_to_pivot <- c("Clothing_footwear", "Comm_goods_services"
+                      , "Food_non_alc_services", "Health_goods_services"
+                      , "Housing_utilities", "Social_protection")
+
+pie_data2 <- data_merged %>%
+  pivot_longer(cols = all_of(columns_to_pivot)
+               , names_to = "Spending_category"
+               , values_to = "Percentage")
+
+p6 <- ggplot(pie_data2, aes(x = Location, y = Percentage, fill = Spending_category)) +
+  geom_bar(stat = "identity", position = "fill") +
+  scale_fill_manual(values = c(wes_palette("Zissou1", n = length(unique(pie_data2$Spending_category)), type = "continuous"), "#D3D3D3")) + # Adding an extra color
+  labs(title = "Consumer Spending Percentage by Selected Categories (2011-2022)",
+       x = "Location",
+       y = "Percentage") +
+  theme_minimal() +
+  facet_wrap(~ Year, scales = "free", labeller = label_both) +
+  theme(strip.text = element_text(size = 8)) +
+  scale_y_continuous(labels = scales::percent_format()) +
+  geom_text(aes(label = scales::percent(Percentage, accuracy = 0.1)),
+            position = position_fill(vjust = 0.5), size = 2)
+
+ggsave(filename = here::here("Figures", "CONS_SPENDING.png"), plot = p6, width = 8, height = 6)
 
 # Pie of sectorial contribution to GVA, real, PPP 
-data_filtered %>%
+data_filtered  <- data_merged %>% 
   dplyr::select(starts_with("GVA")) %>% 
   dplyr::select(contains("PPC")) %>% colnames()
 # [1] "GVAAPPPC"     "GVAGIR_UPPPC"
@@ -538,19 +576,19 @@ data_merged <- data_merged %>%
          GVAK_NPPPC = as.numeric(GVAK_NPPPC),
          GVAB_FPPPC = as.numeric(GVAB_FPPPC),        
          ) %>%
-  mutate(Agriculture_GVA_Pct = GVAAPPPC / GVATOTPPPC * 100
-         , Consumer_services_GVA_Pct = GVAGIR_UPPPC / GVATOTPPPC * 100
-         , Financial_business_services_GVA_Pct = GVAK_NPPPC / GVATOTPPPC * 100
-         , Industry_GVA_Pct = GVAK_NPPPC / GVATOTPPPC * 100         
-         , Public_services_GVA_Pct = GVAB_FPPPC / GVATOTPPPC * 100
-         )
+  mutate(Agriculture_GVA_Pct = GVAAPPPC / GVATOTPPPC
+         , Consumer_services_GVA_Pct = GVAGIR_UPPPC / GVATOTPPPC
+         , Financial_business_services_GVA_Pct = GVAK_NPPPC / GVATOTPPPC
+         , Industry_GVA_Pct = GVAK_NPPPC / GVATOTPPPC          
+         , Public_services_GVA_Pct = GVAB_FPPPC / GVATOTPPPC 
+         ) # Decimal format
 
-# columns_to_pivot <- c("Agriculture_GVA_Pct", "Consumer_services_GVA_Pct", 
-#                       "Financiamergel_business_services_GVA_Pct", "Industry_GVA_Pct", 
-#                       "Public_services_GVA_Pct")
+columns_to_pivot <- c("Agriculture_GVA_Pct", "Consumer_services_GVA_Pct",
+                      "Financial_business_services_GVA_Pct", "Industry_GVA_Pct",
+                      "Public_services_GVA_Pct")
 
-# pie_data<- data_merged %>%
-#   pivot_longer(cols = all_of(columns_to_pivot), names_to = "Sector", values_to = "Percentage")
+pie_data <- data_merged %>%
+  pivot_longer(cols = all_of(columns_to_pivot), names_to = "Sector", values_to = "Percentage")
 
 # GVA pie chart
 # ggplot(pie_data, aes(x = "", y = Percentage, fill = Sector)) +
@@ -560,23 +598,20 @@ data_merged <- data_merged %>%
 #   theme_void() +
 #   labs(title = "GVA Percentage by Sector")
 
-ggplot(pie_data, aes(x = Location, y = GVATOTPPPC, fill = Sector)) +
+p5 <-  ggplot(pie_data, aes(x = Location, y = Percentage, fill = Sector)) +
   geom_bar(stat = "identity", position = "fill") +
   scale_fill_manual(values = c(wes_palette("Zissou1", n = length(unique(pie_data$Sector)), type = "continuous"), "#D3D3D3")) + # Adding an extra color
-  labs(title = "GVA Percentage by Sector",
+  labs(title = "GVA Percentage by Sector (2011-2022)",
        x = "Location",
        y = "Percentage") +
   theme_minimal() +
-  facet_wrap(~ category_var, scales = "free", labeller = label_both) +
+  facet_wrap(~ Year, scales = "free", labeller = label_both) +
   theme(strip.text = element_text(size = 8)) +
-  scale_y_continuous(labels = scales::percent_format()) #+
-  # geom_text(aes(label = scales::percent(GVATOTPPPC / sum(GVATOTPPPC), accuracy = 0.1)), 
-  #           position = position_fill(vjust = 0.5), size = 3)
+  scale_y_continuous(labels = scales::percent_format()) +
+  geom_text(aes(label = scales::percent(Percentage, accuracy = 0.1)),
+            position = position_fill(vjust = 0.5), size = 2)
 
-# Visualize or analyze the data
-ggplot(data_merged, aes(x = Year, y = GDP_per_capita_PPP, color = City)) +
-  geom_line() +
-  labs(title = "GDP per Capita (PPP) Over Time", x = "Year", y = "GDP per Capita (PPP)")
+ggsave(filename = here::here("Figures", "GVA_SECTOR.png"), plot = p5, width = 8, height = 6)
 
 
 
