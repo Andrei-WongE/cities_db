@@ -19,10 +19,6 @@
 ##
 ## ---------------------------
 
-## Program Set-up ------------
-
-options(scipen = 100, digits = 4) # Prefer non-scientific notation
-
 ## Load required packages ----
 
 library("pacman")
@@ -41,10 +37,15 @@ pkgs = c("dplyr", "tidyverse", "janitor", "sf"
          , "future", "furrr", "data.table","leaflet"
          , "jtools", "tidyr", "ggspatial", "raster"
          , "prettymapr", "viridis", "labelled"
-         , "writexl"
+         , "writexl", "WDI", "wesanderson", "ggrepel"
 )
 
 groundhog.library(pkgs, groundhog.day, ignore.deps = c("stringi", "fs"))
+
+## Program Set-up ------------
+
+options(scipen = 100, digits = 4) # Prefer non-scientific notation
+sf_use_s2(TRUE) # Use s2 spherical geometry for geographical coordinate operations 
 
 ## Runs the following --------
 
@@ -181,14 +182,15 @@ cities <- c("Colombo", "Phnom Penh", "Ho Chi Minh City", "Surabaya", "Chittagong
 
 
 data <- data %>% filter(Location %in% locations) %>% 
-                 filter(Location %in% cities | Location == "") %>% 
-                 filter(Year == 2019 | Year == "")
+                 filter(Location %in% cities | Location == "") 
+#%>% 
+                 # filter(Year == 2019 | Year == "")
 
 # Select columns
-columns_to_keep <- c("Year", "Location", "PEDYHHPUSN", "FCTOTPPPC", "FCTOTUSN", "FCTOTUSC", "EMPA", "EMPGIR_U",
-                     "EMPK_N", "EMPB_F", "EMPO_Q", "EMPTOTT", "EMPHJ", "GDPTOTUSC", "GDPTOTPPPN", "GVAAUSN",
-                     "GVAGIR_UUSN", "GVAK_NUSN", "GVAB_FUSN", "GVAO_QUSN", "GVATOTUSN", "GVAHJUSN", "POPTOTT")
-data <- data %>% dplyr::select(all_of(columns_to_keep))
+# columns_to_keep <- c("Year", "Location", "PEDYHHPUSN", "FCTOTPPPC", "FCTOTUSN", "FCTOTUSC", "EMPA", "EMPGIR_U",
+#                      "EMPK_N", "EMPB_F", "EMPO_Q", "EMPTOTT", "EMPHJ", "GDPTOTUSC", "GDPTOTPPPN", "GVAAUSN",
+#                      "GVAGIR_UUSN", "GVAK_NUSN", "GVAB_FUSN", "GVAO_QUSN", "GVATOTUSN", "GVAHJUSN", "POPTOTT")
+# data <- data %>% dplyr::select(all_of(columns_to_keep))
 
 # Cleaning
 numeric_columns <- c("PEDYHHPUSN", "FCTOTPPPC", "FCTOTUSN", "FCTOTUSC", "EMPA", "EMPGIR_U", "EMPK_N", "EMPB_F",
@@ -239,13 +241,13 @@ table(data$category_var)
 # Convert category_var to integer
 data$category_int <- as.integer(data$category_var)
 
-# Time series graphs
-data$id_numeric <- as.numeric(factor(data$Location))
-data$Year <- as.numeric(data$Year)
-
-# Set up panel data
-data_panel <- data %>% arrange(id_numeric, Year) %>% 
-                 filter(!is.na(Year) & !is.na(EMPTOTT))
+# # Time series graphs
+# data$id_numeric <- as.numeric(factor(data$Location))
+# data$Year <- as.numeric(data$Year)
+# 
+# # Set up panel data
+# data_panel <- data %>% arrange(id_numeric, Year) %>% 
+#                  filter(!is.na(Year) & !is.na(EMPTOTT))
 
 ### Total Employment-----
 
@@ -258,6 +260,9 @@ data_panel <- data %>% arrange(id_numeric, Year) %>%
 #   scale_x_continuous(breaks = seq(min(data$Year), max(data$Year), by = 5)) +
 #   scale_y_continuous(n.breaks = 4)
 
+# Convert Year to numeric
+data$Year <- as.numeric(as.character(data$Year))
+
 # Order of locations based on their last data point
 location_order <- data %>%
   group_by(Location) %>%
@@ -265,8 +270,8 @@ location_order <- data %>%
   arrange(desc(TotalEmp)) %>%
   pull(Location)
 
-(ggplot(data, aes(x = Year, y = EMPTOTT, color = factor(Location, levels = location_order))) +
-  geom_point(size = 3) +
+ggplot(data, aes(x = Year, y = EMPTOTT, color = factor(Location, levels = location_order))) +
+  geom_line(linewidth = 1.2) +  # Adjust the size to change line thickness
   labs(title = "Total Employment",
        x = "Year",
        y = "Total Employment",
@@ -274,7 +279,8 @@ location_order <- data %>%
   theme_minimal() +
   scale_x_continuous(breaks = seq(min(data$Year), max(data$Year), by = 5)) +
   scale_y_continuous(n.breaks = 4, labels = scales::comma) +
-  theme(legend.position = "right"))
+  theme(legend.position = "right")
+
 
 ### Average total employment-----
 avg_data <- data %>% 
@@ -302,9 +308,7 @@ ggplot(avg_data, aes(x = Year, y = EMPTOTT)) +
   scale_y_continuous(n.breaks = 4))
 
 
-
-
-#### Request
+#### Request ----
 require(readr)
 
 show_in_excel <- function(.data){
@@ -327,7 +331,12 @@ data_colombo <- data %>% filter(Location=="Colombo") %>%
 
 show_in_excel(data_colombo)
 
-write_xlsx(data_colombo, here("Data", "data_colombo.xlsx"), col_names = TRUE)
+labels_vector <- setNames(labels$Label, labels$Variable)
+data_colombo_labeled <- setNames(data_colombo, labels_vector[names(data_colombo)])
+
+write_xlsx(data_colombo_labeled, here("Data", "data_colombo.xlsx"), col_names = TRUE)
+
+
 
 data %>% filter(Location=="Colombo") %>% 
   dplyr::select(where(~ !all(is.na(.)))) %>%
@@ -361,6 +370,213 @@ data_colombo4 <- ucdb_full_vars %>% filter(CTR_MN_NM=="Sri Lanka") %>%
 show_in_excel(data_colombo4)
 
 
+####### Statistics ##########
+# labels_vector <- setNames(labels$Label, labels$Variable)
+# data_merged <- setNames(data_merged, labels_vector[names(data_merged)])
+
+# Filter the data for the required years (2011-2022)
+data_filtered <- data %>%
+  filter(Year >= 2011 & Year <= 2022) %>% 
+  mutate(Year = as.character(Year))
+
+# Extract PPP data from the World Bank API
+ppp_data <- WDI(indicator = "PA.NUS.PPP", start = 2011, end = 2022, extra = TRUE) %>% 
+  mutate(year = as.character(year))
+
+# Merge the PPP data with the cities data
+data_merged <- data_filtered %>%
+  left_join(ppp_data, by = c("Location" = "capital", "Year" = "year"))
+
+# Calculate real GDP per capita adjusted for PPP
+data_merged <- data_merged %>%
+  mutate(GDPTOTPPPC = as.numeric(GDPTOTPPPC),
+         POPTOTT = as.numeric(POPTOTT),) %>%
+  mutate(GDP_per_capita_PPP = GDPTOTPPPC / POPTOTT)
+
+# ggplot(data_merged, aes(x = Location, y = GDP_per_capita_PPP, fill = category_var)) +
+#   geom_bar(stat = "identity", position = "dodge") +
+#   scale_fill_manual(values = wes_palette("Zissou1", n = length(unique(data_merged$category_var)), type = "continuous")) +
+#   labs(title = "GDP per Capita PPP by Category and City (2011-2022)",
+#        x = "City",
+#        y = "GDP per Capita PPP") +
+#   theme_minimal() +
+#   facet_wrap(~ Year)
+
+p <- ggplot(data_merged, aes(x = Year, y = GDP_per_capita_PPP, color = category_var, group = interaction(Location, category_var))) +
+  geom_line(linewidth = 1.1) +
+  geom_point() +
+  scale_color_manual(values = wes_palette("Zissou1", n = length(unique(data_merged$category_var)), type = "continuous")) +
+  labs(title = "GDP per Capita PPP by Category and City (2011-2022)",
+       x = "Year",
+       y = "GDP per Capita PPP") +
+  theme_minimal()
+
+# Add labels at the end of line
+p + geom_text_repel(data = data_merged %>% group_by(Location, category_var) %>% filter(Year == max(Year)),
+                    aes(label = Location),
+                    nudge_x = 1,  # Adjust this value to move the labels further to the right
+                    direction = "y",
+                    hjust = 0,
+                    segment.color = "grey50")
+
+ggsave(filename = here::here("Figures", "R_GDP_PPP.png"), plot = p, width = 8, height = 6)
+
+# Calculate Total Employment as a Pct of the working-age population
+data_merged <- data_merged %>%
+  mutate(POPTOTT = as.numeric(POPTOTT),
+         EMPTOTT = as.numeric(EMPTOTT),
+         POP0_14T = as.numeric(POP0_14T),
+         POP65_T = as.numeric(POP65_T),) %>%
+  mutate(Total_Employment_Pct = (EMPTOTT / (POPTOTT-POP0_14T-POP65_T) * 100))
+
+# ggplot(data_merged, aes(x = Location, y = Total_Employment_Pct, fill = category_var)) +
+#   geom_bar(stat = "identity", position = "dodge") +
+#   scale_fill_manual(values = wes_palette("Zissou1", n = length(unique(data_merged$category_var)), type = "continuous")) +
+#   labs(title = "Total Employment Percentage of Working-Age pop by Category and City",
+#        x = "City",
+#        y = "Total Employment Percentage") +
+#   theme_minimal()
+
+p2 <- ggplot(data_merged, aes(x = Year
+                             , y = Total_Employment_Pct
+                             , color = interaction(Location, category_var)
+                             , group = interaction(Location, category_var))) +
+  geom_line(size = 1.5) +  # Increase the line width
+  geom_point() +
+  scale_color_manual(values = wes_palette("Zissou1", n = length(unique(interaction(data_merged$Location, data_merged$category_var))), type = "continuous")) +
+  labs(title = "Total Employment Percentage of Working-Age Population by Category and City (2011-2022)",
+       x = "Year",
+       y = "Total Employment Percentage") +
+  theme_minimal()
+
+# Add labels at the end of line
+p2 + geom_text_repel(data = data_merged %>% group_by(Location, category_var) %>% filter(Year == max(Year)),
+                    aes(label = Location),
+                    nudge_x = 1,  # Adjust this value to move the labels further to the right
+                    direction = "y",
+                    hjust = 0,
+                    segment.color = "grey50")
+
+ggsave(filename = here::here("Figures", "R_GDP_PPP.png"), plot = p2, width = 8, height = 6)
+
+# Average household personal disposable income, real, PPP$
+label_tothhincome <- attr(data_merged$PEDYHHPPPPC, "label")
+print(label_tothhincome)
+
+data_merged <- data_merged %>%
+  mutate(PEDYHHPPPPC = as.numeric(PEDYHHPPPPC)) %>% 
+  mutate(Avg_Household_Income_PPP = PEDYHHPPPPC)
+
+# ggplot(data_merged, aes(x = Location, y = Avg_Household_Income_PPP, fill = category_var)) +
+#   geom_bar(stat = "identity", position = "dodge") +
+#   scale_fill_manual(values = wes_palette("Zissou1", n = length(unique(data_merged$category_var)), type = "continuous")) +
+#   labs(title = "Average Household Income PPP by Category and City",
+#        x = "City",
+#        y = "Average Household Income PPP") +
+#   theme_minimal()
+
+p <- ggplot(data_merged, aes(x = Year, y = Avg_Household_Income_PPP, color = category_var, group = interaction(Location, category_var))) +
+  geom_line(size = 1.5) +  # Increase the line width
+  geom_point() +
+  scale_color_manual(values = wes_palette("Zissou1", n = length(unique(data_merged$category_var)), type = "continuous")) +
+  labs(title = "Average Household Income PPP by Category and City (2011-2022)",
+       x = "Year",
+       y = "Average Household Income PPP") +
+  theme_minimal()
+
+# Add labels at the end of line
+p + geom_text_repel(data = data_merged %>% group_by(Location, category_var) %>% filter(Year == max(Year)),
+                    aes(label = Location),
+                    nudge_x = 1,  # Adjust this value to move the labels further to the right
+                    direction = "y",
+                    hjust = 0,
+                    segment.color = "grey50")
+
+
+# Calculate Labor Force Participation Rate
+data_merged <- data_merged %>%
+  mutate(Labor_Force_Participation_Rate = Labor_Force / Working_Age_Population * 100)
+
+# Calculate Employment in High-Tech Industries as a Pct of total employment
+data_filtered <-   data_merged %>% 
+  dplyr::select(starts_with("EMP")) %>% 
+  colnames()
+# [1] "EMPA"         "EMPGIR_U"     "EMPK_N"      
+# [5] "EMPB_F"       "EMPO_Q"       "EMPTOTT"      "EMPHJ
+
+map(c("EMPA", "EMPGIR_U", "EMPK_N", "EMPB_F", "EMPO_Q", "EMPTOTT", "EMPHJ"),
+    ~ attr(data_merged[[.x]], "label"))
+
+data_merged <- data_merged %>%
+  mutate(High_Tech_Employment_Pct = High_Tech_Employment / Total_Employment * 100)
+
+# Calculate Industrial Output per capita
+data_merged <- data_merged %>%
+  mutate(Industrial_Output_Per_Capita = Industrial_Output / Population)
+
+# Calculate Service Sector Output per capita
+data_merged <- data_merged %>%
+  mutate(Service_Sector_Output_Per_Capita = Service_Sector_Output / Population)
+
+# Pie of sectorial contribution to GVA, real, PPP 
+data_filtered %>%
+  dplyr::select(starts_with("GVA")) %>% 
+  dplyr::select(contains("PPC")) %>% colnames()
+# [1] "GVAAPPPC"     "GVAGIR_UPPPC"
+# [3] "GVAK_NPPPC"   "GVAB_FPPPC"  
+# [5] "GVAO_QPPPC"   "GVATOTPPPC"  
+# [7] "GVAHJPPPC"  
+
+map(c("GVAAPPPC", "GVAGIR_UPPPC", "GVAK_NPPPC", "GVAB_FPPPC", "GVAO_QPPPC", "GVATOTPPPC", "GVAHJPPPC"), 
+    ~ attr(data_merged[[.x]], "label"))
+
+data_merged <- data_merged %>%
+  mutate(GVATOTPPPC = as.numeric(GVATOTPPPC),
+         GVAGIR_UPPPC = as.numeric(GVAGIR_UPPPC),
+         GVAAPPPC = as.numeric(GVAAPPPC),
+         GVAK_NPPPC = as.numeric(GVAK_NPPPC),
+         GVAK_NPPPC = as.numeric(GVAK_NPPPC),
+         GVAB_FPPPC = as.numeric(GVAB_FPPPC),        
+         ) %>%
+  mutate(Agriculture_GVA_Pct = GVAAPPPC / GVATOTPPPC * 100
+         , Consumer_services_GVA_Pct = GVAGIR_UPPPC / GVATOTPPPC * 100
+         , Financial_business_services_GVA_Pct = GVAK_NPPPC / GVATOTPPPC * 100
+         , Industry_GVA_Pct = GVAK_NPPPC / GVATOTPPPC * 100         
+         , Public_services_GVA_Pct = GVAB_FPPPC / GVATOTPPPC * 100
+         )
+
+# columns_to_pivot <- c("Agriculture_GVA_Pct", "Consumer_services_GVA_Pct", 
+#                       "Financiamergel_business_services_GVA_Pct", "Industry_GVA_Pct", 
+#                       "Public_services_GVA_Pct")
+
+# pie_data<- data_merged %>%
+#   pivot_longer(cols = all_of(columns_to_pivot), names_to = "Sector", values_to = "Percentage")
+
+# GVA pie chart
+# ggplot(pie_data, aes(x = "", y = Percentage, fill = Sector)) +
+#   geom_bar(stat = "identity", width = 1) +
+#   coord_polar("y") +
+#   scale_fill_manual(values = c(wes_palette("Zissou1"), "#D3D3D3")) + # Adding an extra color
+#   theme_void() +
+#   labs(title = "GVA Percentage by Sector")
+
+ggplot(pie_data, aes(x = Location, y = GVATOTPPPC, fill = Sector)) +
+  geom_bar(stat = "identity", position = "fill") +
+  scale_fill_manual(values = c(wes_palette("Zissou1", n = length(unique(pie_data$Sector)), type = "continuous"), "#D3D3D3")) + # Adding an extra color
+  labs(title = "GVA Percentage by Sector",
+       x = "Location",
+       y = "Percentage") +
+  theme_minimal() +
+  facet_wrap(~ category_var, scales = "free", labeller = label_both) +
+  theme(strip.text = element_text(size = 8)) +
+  scale_y_continuous(labels = scales::percent_format()) #+
+  # geom_text(aes(label = scales::percent(GVATOTPPPC / sum(GVATOTPPPC), accuracy = 0.1)), 
+  #           position = position_fill(vjust = 0.5), size = 3)
+
+# Visualize or analyze the data
+ggplot(data_merged, aes(x = Year, y = GDP_per_capita_PPP, color = City)) +
+  geom_line() +
+  labs(title = "GDP per Capita (PPP) Over Time", x = "Year", y = "GDP per Capita (PPP)")
 
 
 
