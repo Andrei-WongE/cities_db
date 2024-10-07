@@ -268,7 +268,8 @@ data_colombo3 <- wb_doingbusiness %>% filter(Economy=="Sri Lanka") %>%
 show_in_excel(data_colombo3)
 
 
-cities <- c("Colombo", "Phnom Penh", "Ho Chi Minh City", "Surabaya", "Chittagong", "Port Louis")
+cities <- c("Colombo", "Mumbai", "Chennai", "Kochi", "Chittagong", "Karachi", "Ho Chi Minh City", "Surabaya",
+               "Singapore", "Bangkok", "Kuala Lumpur", "Hangzhou", "Quingdao", "Tianjin", "Xiamen")
 
 data_wbdb <- wb_doingbusiness %>% filter(Location %in% cities) 
 
@@ -459,6 +460,89 @@ create_population_plot(data_merged,
 #                            max.overlaps = Inf)  # Allow for more overlaps
 # 
 # ggsave(filename = here::here("Figures", "TOT_EMP.png"), plot = p1, width = 8, height = 6)
+### Structure of Employment-----
+data_merged <- data_merged %>%
+  mutate(across(c(EMPO_Q
+                  , EMPB_F
+                  , EMPK_N
+                  , EMPGIR_U
+                  , EMPA
+                  , EMPHJ), as.numeric)) %>%
+  mutate(
+    Public_Services = EMPO_Q / EMPTOTT,
+    Industry = EMPB_F / EMPTOTT,
+    Fiancial_Busines_Serices= EMPK_N / EMPTOTT,
+    Consumer_services = EMPGIR_U / EMPTOTT,
+    Agriculture = EMPA / EMPTOTT,
+    Transport_Information_Communic_Services = EMPHJ / EMPTOTT
+  )
+
+columns_to_pivot <- c("Public_Services"
+                      , "Industry"
+                      , "Fiancial_Busines_Serices"
+                      , "Consumer_services"
+                      , "Agriculture"
+                      , "Transport_Information_Communic_Services")
+
+pie_data3 <- data_merged %>%
+  pivot_longer(cols = all_of(columns_to_pivot)
+               , names_to = "Employment_sector"
+               , values_to = "Percentage")
+
+p10 <- ggplot(pie_data3, aes(x = Location, y = Percentage, fill = Employment_sector)) +
+  geom_bar(stat = "identity", position = "fill") +
+  scale_fill_manual(values = c(wes_palette("Zissou1", n = length(unique(pie_data3$Employment_sector)), type = "continuous"), "#D3D3D3")) + # Adding an extra color
+  labs(title = "Enployment Sector Percentage by Selected Categories (2011-2022)",
+       x = "Location",
+       y = "Percentage") +
+  theme_minimal() +
+  facet_wrap(~ Year, scales = "free", labeller = label_both) +
+  theme(strip.text = element_text(size = 8)) +
+  scale_y_continuous(labels = scales::percent_format()) +
+  geom_text(aes(label = scales::percent(Percentage, accuracy = 0.1)),
+            position = position_fill(vjust = 0.5), size = 2)
+
+ggsave(filename = here::here("Figures", "EMP_SECTOR.png"), plot = p10, width = 8, height = 6)
+
+
+# Code for Location specific plots
+# Get unique locations
+locations <- unique(pie_data2$Location)
+
+# Create a plot for each location
+for (loc in locations) {
+  # Filter data for the current location
+  loc_data <- pie_data2 %>% filter(Location == loc)
+  
+  # Create the plot
+  p11 <- ggplot(loc_data, aes(x = Year, y = Percentage, fill = Spending_category)) +
+    geom_area(position = "fill") +
+    scale_fill_manual(values = c(wes_palette("Zissou1", n = length(unique(pie_data2$Spending_category)), type = "continuous"), "#D3D3D3")) +
+    labs(title = paste("Consumer Spending Percentage by Category in", loc, "(2011-2022)"),
+         x = "Year",
+         y = "Percentage",
+         fill = "Spending Category") +
+    theme_minimal() +
+    theme(
+      plot.title = element_text(size = 14, face = "bold"),
+      axis.text.x = element_text(angle = 45, hjust = 1, size = 8),
+      legend.position = "bottom",
+      legend.title = element_blank()
+    ) +
+    scale_y_continuous(labels = scales::percent_format()) +
+    scale_x_continuous(breaks = unique(loc_data$Year))
+  
+  # Save the plot with location-specific filename
+  ggsave(
+    filename = here::here("Figures", paste0("EMP_SECTOR_", gsub(" ", "_", loc), ".png")), 
+    plot = p11, 
+    width = 10, 
+    height = 8
+  )
+  
+  # Display the plot
+  print(p11)
+}
 
 
 ### Total GDP-----
