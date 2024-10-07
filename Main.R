@@ -175,13 +175,14 @@ require(labelled)
 
 locations <- c("Colombo", "Sri Lanka", "Phnom Penh", "Cambodia", "Ho Chi Minh City", "Vietnam - Total",
                "Surabaya", "Indonesia", "Chittagong", "Port Louis", "Mauritius", "Auckland", "New Zealand - Total")
+
 cities <- c("Colombo", "Phnom Penh", "Ho Chi Minh City", "Surabaya", "Chittagong", "Port Louis")
+mena <- c("Cairo", "Riyadh", "Dubai", "Tehran", "Istanbul", "Baghdad", "Casablanca", "Doha")
 
 
-data <- data %>% filter(Location %in% locations) %>% 
-                 filter(Location %in% cities | Location == "") 
-#%>% 
-                 # filter(Year == 2019 | Year == "")
+data_mena <- data %>% 
+             filter(Location %in% mena | Location == "")
+
 
 # Select columns
 # columns_to_keep <- c("Year", "Location", "PEDYHHPUSN", "FCTOTPPPC", "FCTOTUSN", "FCTOTUSC", "EMPA", "EMPGIR_U",
@@ -189,35 +190,16 @@ data <- data %>% filter(Location %in% locations) %>%
 #                      "GVAGIR_UUSN", "GVAK_NUSN", "GVAB_FUSN", "GVAO_QUSN", "GVATOTUSN", "GVAHJUSN", "POPTOTT")
 # data <- data %>% dplyr::select(all_of(columns_to_keep))
 
-# Cleaning
-numeric_columns <- c("PEDYHHPUSN", "FCTOTPPPC", "FCTOTUSN", "FCTOTUSC", "EMPA", "EMPGIR_U", "EMPK_N", "EMPB_F",
-                     "EMPO_Q", "EMPTOTT", "EMPHJ", "GDPTOTUSC", "GDPTOTPPPN", "GVAAUSN", "GVAGIR_UUSN", "GVAK_NUSN",
-                     "GVAB_FUSN", "GVAO_QUSN", "GVATOTUSN", "GVAHJUSN")
-
-data <- data %>% 
-  filter(Location != "") %>% 
-  mutate(across(everything(), ~na_if(., "NA"))) %>% 
-  mutate(across(all_of(numeric_columns), as.numeric)) %>% 
-  mutate(category_var = case_when(
-    Location == "Colombo" ~ 1,
-    Location %in% c("Phnom Penh", "Ho Chi Minh City", "Surabaya", "Chittagong") ~ 2,
-    Location %in% c("Port Louis", "Auckland", "Lisbon", "Singapore") ~ 3
-  ))
-
-# Remove duplicates
-data <- distinct(data)
-
-# Label category variable
-data$category_var <- factor(data$category_var, 
-                            levels = 1:3, 
-                            labels = c("City", "DIRECT COMPARATORS", "ASPIRATIONAL COMPARATORS"))
-
-# Remove specific locations
-data <- data %>% filter(!(Location %in% c("Indonesia", "Cambodia", "Sri Lanka", "Mauritius")))
-
-# Create category group
-data <- data %>% group_by(category_var) %>% mutate(category_group = cur_group_id())
-
+# 
+# data <- data %>% 
+#   filter(Location != "") %>% 
+#   mutate(across(everything(), ~na_if(., "NA"))) %>% 
+#   mutate(across(all_of(numeric_columns), as.numeric)) %>% 
+#   mutate(category_var = case_when(
+#     Location == "Colombo" ~ 1,
+#     Location %in% c("Phnom Penh", "Ho Chi Minh City", "Surabaya", "Chittagong") ~ 2,
+#     Location %in% c("Port Louis", "Auckland", "Lisbon", "Singapore") ~ 3
+#   ))
 
 ## Visualisation -------
 # Create bar plot
@@ -276,8 +258,9 @@ data_colombo2 <- qs_rankings %>% filter(location=="Sri Lanka") %>%
 show_in_excel(data_colombo2)
 
 
-
-wb_doingbusiness <- read_csv(here("Data","WB_doingbusiness_CCKSB.csv"))
+### wb_doingbusiness----
+wb_doingbusiness <- read_csv(here("Data", "WB_doingbusiness_CCKSB.csv")) %>% 
+  rename(Location = `Location 1\r\n(city, port)`)
 
 data_colombo3 <- wb_doingbusiness %>% filter(Economy=="Sri Lanka") %>% 
   dplyr::select(where(~ !all(is.na(.)))) 
@@ -285,7 +268,16 @@ data_colombo3 <- wb_doingbusiness %>% filter(Economy=="Sri Lanka") %>%
 show_in_excel(data_colombo3)
 
 
-ucdb_full_vars <- read_csv(here("Data","UCDB_CCKSB_full_vars.csv"))
+cities <- c("Colombo", "Phnom Penh", "Ho Chi Minh City", "Surabaya", "Chittagong", "Port Louis")
+
+data_wbdb <- wb_doingbusiness %>% filter(Location %in% cities) 
+
+
+
+### UCDB----
+ucdb_full_vars <- read_csv(here("Data","UCDB_CCKSB_full_vars.csv")) %>% 
+  rename(Location = loc_latin)
+
 data_colombo4 <- ucdb_full_vars %>% filter(CTR_MN_NM=="Sri Lanka") %>% 
   dplyr::select(where(~ !all(is.na(.)))) %>% 
   filter(loc_latin != "Sammanturai") # Row contains all missing data
@@ -293,6 +285,7 @@ data_colombo4 <- ucdb_full_vars %>% filter(CTR_MN_NM=="Sri Lanka") %>%
 
 show_in_excel(data_colombo4)
 
+data_ucdb <- ucdb_full_vars %>% filter(Location %in% cities) 
 
 # Statistics -----
 # labels_vector <- setNames(labels$Label, labels$Variable)
@@ -300,8 +293,7 @@ show_in_excel(data_colombo4)
 
 # Filter the data for the required years (2011-2022)
 data_filtered <- data %>%
-  filter(Year >= 2011 & Year <= 2022) %>% 
-  mutate(Year = as.character(Year))
+  filter(Year >= 2011 & Year <= 2022)
 
 # Extract PPP data from the World Bank API
 ppp_data <- WDI(indicator = "PA.NUS.PPP", start = 2011, end = 2022, extra = TRUE) %>% 
@@ -314,11 +306,44 @@ data_merged <- data_filtered %>%
 # Get all variable labels
 var_label(data_merged) %>% View()
 
+# Filer for location and create groups
+numeric_columns <- c("PEDYHHPUSN", "FCTOTPPPC", "FCTOTUSN", "FCTOTUSC", "EMPA", "EMPGIR_U", "EMPK_N", "EMPB_F",
+                     "EMPO_Q", "EMPTOTT", "EMPHJ", "GDPTOTUSC", "GDPTOTPPPN", "GVAAUSN", "GVAGIR_UUSN", "GVAK_NUSN",
+                     "GVAB_FUSN", "GVAO_QUSN", "GVATOTUSN", "GVAHJUSN")
+
+locations <- c("Colombo", "Mumbai", "Chennai", "Kochi", "Chittagong", "Karachi", "Ho Chi Minh City", "Surabaya",
+               "Singapore", "Bangkok", "Kuala Lumpur", "Hangzhou", "Quingdao", "Tianjin", "Xiamen")
+
+data_merged <- data_merged %>% 
+  filter(Location != "") %>% 
+  # mutate(across(everything(), ~na_if(., "NA"))) %>% 
+  mutate(across(all_of(numeric_columns), as.numeric)) %>% 
+  mutate(category_var = case_when(
+    Location %in% c("Colombo") ~ 1,
+    Location %in% c("Mumbai", "Chennai", "Kochi", "Chittagong", "Karachi", "Ho Chi Minh City", "Surabaya") ~ 2,
+    Location %in% c("Singapore", "Bangkok", "Kuala Lumpur", "Hangzhou", "Quingdao", "Tianjin", "Xiamen") ~ 3
+  )) %>% 
+  filter(Location %in% locations| Location == "")
+
 # Table of category_var
 table(data_merged$category_var)
 
 # Convert category_var to integer
 data_merged$category_int <- as.integer(data_merged$category_var)
+
+# Remove duplicates
+data_merged <- distinct(data_merged)
+
+# Label category variable
+data_merged$category_var <- factor(data_merged$category_var, 
+                            levels = 1:3, 
+                            labels = c("City", "DIRECT COMPARATORS", "ASPIRATIONAL COMPARATORS"))
+
+# Remove specific locations
+# data <- data %>% filter(!(Location %in% c("Indonesia", "Cambodia", "Sri Lanka", "Mauritius")))
+
+# Create category group
+data_merged <- data_merged %>% group_by(category_var) %>% mutate(category_group = cur_group_id())
 
 # Convert Year to numeric
 data_merged$Year <- as.numeric(as.character(data_merged$Year))
@@ -330,66 +355,75 @@ data_merged <- data_merged %>%
   mutate(POPTOTT = as.numeric(POPTOTT)) %>%
   mutate(Total_population = POPTOTT)  
   
-# Order of locations based on their last data point
-location_order <- data_merged %>%
-  group_by(Location) %>%
-  summarize(last_value = last(Total_population)) %>%
-  arrange(desc(last_value)) %>%
-  pull(Location)
+create_population_plot(data_merged,
+                       variable_name = "Total_population",
+                       title = "Total Population by Category and City (2011-2022)",
+                       x_label = "Year",
+                       y_label = "Total Population (thousands)",
+                       save_plot = TRUE,
+                       filename = "TOT_POP.png"
+)
 
-data_merged$Location <- factor(data_merged$Location, levels = location_order)
-
-# Last values based on combination of Location and category_var
-last_values <- data_merged %>%
-  group_by(Location, category_var) %>%
-  slice_max(Year) %>%
-  ungroup() %>%
-  arrange(desc(Total_population))
-
-interaction_levels <- interaction(last_values$Location, last_values$category_var, drop = TRUE)
-
-p7 <- ggplot(data_merged, aes(x = Year,
-                              y = Total_population,
-                              color = interaction(Location, category_var),
-                              group = interaction(Location, category_var))) +
-  geom_line(size = 1.5) +
-  geom_point() +
-  scale_color_manual(values = wes_palette("Zissou1", n = length(interaction_levels), type = "continuous"),
-                     breaks = interaction_levels,
-                     labels = levels(interaction_levels)) +
-  labs(title = "Total Population by Category and City (2011-2022)",
-       x = "Year",
-       y = "Total Population (thousands)") +
-  theme_minimal() 
-
-# Labels for ggrepel
-label_data <- data_merged %>%
-  group_by(Location, category_var) %>%
-  slice_max(Year) %>%
-  ungroup()
-
-p7 <- p7 +
-  geom_text_repel(data = label_data,
-                  aes(label = paste0(Location, "-", category_var, "\n", 
-                                     comma(round(Total_population), accuracy = 1))),
-                  nudge_x = 1,  # Adjust this value to move labels horizontally
-                  direction = "y",
-                  hjust = 0,
-                  segment.size = 0.2,
-                  segment.color = "grey50",
-                  box.padding = 0.5,
-                  point.padding = 0.5,
-                  force = 2,
-                  size = 3) +  # Adjust text size if needed
-  theme(legend.position = "none") +  # Remove legend as labels are now on the plot
-  scale_x_continuous(limits = c(min(data_merged$Year), max(data_merged$Year) + 1))  # Extend x-axis for labels
-
-ggsave(filename = here("Figures", "TOT_POP.png"), plot = p7, width = 10, height = 8)
+# # Order of locations based on their last data point
+# location_order <- data_merged %>%
+#   group_by(Location) %>%
+#   summarize(last_value = last(Total_population)) %>%
+#   arrange(desc(last_value)) %>%
+#   pull(Location)
+# 
+# data_merged$Location <- factor(data_merged$Location, levels = location_order)
+# 
+# # Last values based on combination of Location and category_var
+# last_values <- data_merged %>%
+#   group_by(Location, category_var) %>%
+#   slice_max(Year) %>%
+#   ungroup() %>%
+#   arrange(desc(Total_population))
+# 
+# interaction_levels <- interaction(last_values$Location, last_values$category_var, drop = TRUE)
+# 
+# p7 <- ggplot(data_merged, aes(x = Year,
+#                               y = Total_population,
+#                               color = interaction(Location, category_var),
+#                               group = interaction(Location, category_var))) +
+#   geom_line(size = 1.5) +
+#   geom_point() +
+#   scale_color_manual(values = wes_palette("Zissou1", n = length(interaction_levels), type = "continuous"),
+#                      breaks = interaction_levels,
+#                      labels = levels(interaction_levels)) +
+#   labs(title = "Total Population by Category and City (2011-2022)",
+#        x = "Year",
+#        y = "Total Population (thousands)") +
+#   theme_minimal() 
+# 
+# # Labels for ggrepel
+# label_data <- data_merged %>%
+#   group_by(Location, category_var) %>%
+#   slice_max(Year) %>%
+#   ungroup()
+# 
+# p7 <- p7 +
+#   geom_text_repel(data = label_data,
+#                   aes(label = paste0(Location, "-", category_var, "\n", 
+#                                      comma(round(Total_population), accuracy = 1))),
+#                   nudge_x = 1,  # Adjust this value to move labels horizontally
+#                   direction = "y",
+#                   hjust = 0,
+#                   segment.size = 0.2,
+#                   segment.color = "grey50",
+#                   box.padding = 0.5,
+#                   point.padding = 0.5,
+#                   force = 2,
+#                   size = 3) +  # Adjust text size if needed
+#   theme(legend.position = "none") +  # Remove legend as labels are now on the plot
+#   scale_x_continuous(limits = c(min(data_merged$Year), max(data_merged$Year) + 1))  # Extend x-axis for labels
+# 
+# ggsave(filename = here("Figures", "TOT_POP.png"), plot = p7, width = 10, height = 8)
 
 ### Total Employment-----
 create_population_plot(data_merged,
                        variable_name = "EMPTOTT",
-                       title = "Total Employment by Category and City",
+                       title = "Total Employment by Category and City (2011-2022)",
                        x_label = "Year",
                        y_label = "Total Employment (thousands)",
                        save_plot = TRUE,
@@ -437,7 +471,6 @@ create_population_plot(data_merged,
                        filename = "TOT_GDP.png"
 )
 
-
 # (ggplot(data, aes(x = Year, y = GDPTOTUSC, color = Location)) +
 #    geom_point(size = 3) +
 #    labs(title = "Total GDP",
@@ -446,8 +479,6 @@ create_population_plot(data_merged,
 #    theme_minimal() +
 #    scale_x_continuous(breaks = seq(min(data$Year), max(data$Year), by = 5)) +
 #    scale_y_continuous(n.breaks = 4))
-
-
 
 ### Real GDP per capita adjusted for PPP-----
 data_merged <- data_merged %>%
@@ -463,7 +494,6 @@ create_population_plot(data_merged,
                        save_plot = TRUE,
                        filename = "R_GDP_PPP.png"
 )
-
 
 # ggplot(data_merged, aes(x = Location, y = GDP_per_capita_PPP, fill = category_var)) +
 #   geom_bar(stat = "identity", position = "dodge") +
@@ -505,6 +535,15 @@ data_merged <- data_merged %>%
          POP65_T = as.numeric(POP65_T),) %>%
   mutate(Total_Employment_Pct = (EMPTOTT / (POPTOTT-POP0_14T-POP65_T) * 100))
 
+create_population_plot(data_merged,
+                       variable_name = "Total_Employment_Pct",
+                       title = "Total Employment Percentage of Working-Age Population by Category and City (2011-2022)",
+                       x_label = "Year",
+                       y_label = "Total Employment (percentage)",
+                       save_plot = TRUE,
+                       filename = "EMP_WA_POP.png"
+)
+
 # ggplot(data_merged, aes(x = Location, y = Total_Employment_Pct, fill = category_var)) +
 #   geom_bar(stat = "identity", position = "dodge") +
 #   scale_fill_manual(values = wes_palette("Zissou1", n = length(unique(data_merged$category_var)), type = "continuous")) +
@@ -513,27 +552,27 @@ data_merged <- data_merged %>%
 #        y = "Total Employment Percentage") +
 #   theme_minimal()
 
-p2 <- ggplot(data_merged, aes(x = Year
-                             , y = Total_Employment_Pct
-                             , color = interaction(Location, category_var)
-                             , group = interaction(Location, category_var))) +
-  geom_line(size = 1.5) +  # Increase the line width
-  geom_point() +
-  scale_color_manual(values = wes_palette("Zissou1", n = length(unique(interaction(data_merged$Location, data_merged$category_var))), type = "continuous")) +
-  labs(title = "Total Employment Percentage of Working-Age Population by Category and City (2011-2022)",
-       x = "Year",
-       y = "Total Employment Percentage") +
-  theme_minimal()
-
-# Add labels at the end of line
-p2 + geom_text_repel(data = data_merged %>% group_by(Location, category_var) %>% filter(Year == max(Year)),
-                    aes(label = Location),
-                    nudge_x = 1,  # Adjust this value to move the labels further to the right
-                    direction = "y",
-                    hjust = 0,
-                    segment.color = "grey50")
-
-ggsave(filename = here::here("Figures", "EMP_WA_POP.png"), plot = p2, width = 8, height = 6)
+# p2 <- ggplot(data_merged, aes(x = Year
+#                              , y = Total_Employment_Pct
+#                              , color = interaction(Location, category_var)
+#                              , group = interaction(Location, category_var))) +
+#   geom_line(size = 1.5) +  # Increase the line width
+#   geom_point() +
+#   scale_color_manual(values = wes_palette("Zissou1", n = length(unique(interaction(data_merged$Location, data_merged$category_var))), type = "continuous")) +
+#   labs(title = "Total Employment Percentage of Working-Age Population by Category and City (2011-2022)",
+#        x = "Year",
+#        y = "Total Employment Percentage") +
+#   theme_minimal()
+# 
+# # Add labels at the end of line
+# p2 + geom_text_repel(data = data_merged %>% group_by(Location, category_var) %>% filter(Year == max(Year)),
+#                     aes(label = Location),
+#                     nudge_x = 1,  # Adjust this value to move the labels further to the right
+#                     direction = "y",
+#                     hjust = 0,
+#                     segment.color = "grey50")
+# 
+# ggsave(filename = here::here("Figures", "EMP_WA_POP.png"), plot = p2, width = 8, height = 6)
 
 ### Average household personal disposable income, real, PPP$-----
 label_tothhincome <- attr(data_merged$PEDYHHPPPPC, "label")
@@ -543,6 +582,15 @@ data_merged <- data_merged %>%
   mutate(PEDYHHPPPPC = as.numeric(PEDYHHPPPPC)) %>% 
   mutate(Avg_Household_Income_PPP = PEDYHHPPPPC)
 
+create_population_plot(data_merged,
+                       variable_name = "Avg_Household_Income_PPP",
+                       title = "Average Household Income PPP by Category and City (2011-2022)",
+                       x_label = "Year",
+                       y_label = "High skills employment proportion of total workforce (PPP adjusted)",
+                       save_plot = TRUE,
+                       filename = "AV_HH_DINC.png"
+)
+
 # ggplot(data_merged, aes(x = Location, y = Avg_Household_Income_PPP, fill = category_var)) +
 #   geom_bar(stat = "identity", position = "dodge") +
 #   scale_fill_manual(values = wes_palette("Zissou1", n = length(unique(data_merged$category_var)), type = "continuous")) +
@@ -551,30 +599,30 @@ data_merged <- data_merged %>%
 #        y = "Average Household Income PPP") +
 #   theme_minimal()
 
-p3 <- ggplot(data_merged, aes(x = Year, y = Avg_Household_Income_PPP, color = category_var, group = interaction(Location, category_var))) +
-  geom_line(size = 1.5) +  # Increase the line width
-  geom_point() +
-  scale_color_manual(values = wes_palette("Zissou1", n = length(unique(data_merged$category_var)), type = "continuous")) +
-  labs(title = "Average Household Income PPP by Category and City (2011-2022)",
-       x = "Year",
-       y = "Average Household Income PPP") +
-  theme_minimal()
-
-# Add labels at the end of line
-p3 + geom_text_repel(data = data_merged %>% group_by(Location, category_var) %>% filter(Year == max(Year)),
-                    aes(label = Location),
-                    nudge_x = 1,  # Adjust this value to move the labels further to the right
-                    direction = "y",
-                    hjust = 0,
-                    segment.color = "grey50")
-
-ggsave(filename = here::here("Figures", "AV_HH_DINC.png"), plot = p3, width = 8, height = 6)
+# p3 <- ggplot(data_merged, aes(x = Year, y = Avg_Household_Income_PPP, color = category_var, group = interaction(Location, category_var))) +
+#   geom_line(size = 1.5) +  # Increase the line width
+#   geom_point() +
+#   scale_color_manual(values = wes_palette("Zissou1", n = length(unique(data_merged$category_var)), type = "continuous")) +
+#   labs(title = "Average Household Income PPP by Category and City (2011-2022)",
+#        x = "Year",
+#        y = "Average Household Income PPP") +
+#   theme_minimal()
+# 
+# # Add labels at the end of line
+# p3 + geom_text_repel(data = data_merged %>% group_by(Location, category_var) %>% filter(Year == max(Year)),
+#                     aes(label = Location),
+#                     nudge_x = 1,  # Adjust this value to move the labels further to the right
+#                     direction = "y",
+#                     hjust = 0,
+#                     segment.color = "grey50")
+# 
+# ggsave(filename = here::here("Figures", "AV_HH_DINC.png"), plot = p3, width = 8, height = 6)
 
 ### Labor Force Participation Rate FALTA!!!!!-----
 data_merged <- data_merged %>%
   mutate(Labor_Force_Participation_Rate = Labor_Force / Working_Age_Population * 100)
 
-# Calculate Employment in High-Tech Industries as a Pct of total employment FALTA!!!!!
+# Calculate Employment in High-Tech Industries as a Pct of total employment
 data_filtered <-   data_merged %>% 
   dplyr::select(starts_with("EMP")) %>% 
   colnames()
@@ -585,7 +633,16 @@ map(c("EMPA", "EMPGIR_U", "EMPK_N", "EMPB_F", "EMPO_Q", "EMPTOTT", "EMPHJ"),
     ~ attr(data_merged[[.x]], "label"))
 
 data_merged <- data_merged %>%
-  mutate(High_Tech_Employment_Pct = High_Tech_Employment / Total_Employment * 100)
+  mutate(High_Skills_Employment_Pct = (EMPB_F + EMPK_N) / EMPTOTT * 100) # Industry + finance
+
+create_population_plot(data_merged,
+                       variable_name = "High_Skills_Employment_Pct",
+                       title = "Proportion of Industry and Finance Sector Enployment by Category and City (2011-2022)",
+                       x_label = "Year",
+                       y_label = "Average Household Income (percentaje)",
+                       save_plot = TRUE,
+                       filename = "HIGH_SKILLS_EMP.png"
+)
 
 ### Consumer spending, PPP, real-----
 map(c("FC03PPPC", "FC08PPPC", "FC01PPPC", "FC06PPPC", "FC04PPPC", "FC124PPPC"),
@@ -631,6 +688,46 @@ p6 <- ggplot(pie_data2, aes(x = Location, y = Percentage, fill = Spending_catego
             position = position_fill(vjust = 0.5), size = 2)
 
 ggsave(filename = here::here("Figures", "CONS_SPENDING.png"), plot = p6, width = 8, height = 6)
+
+# Code for Location specific plots
+# Get unique locations
+locations <- unique(pie_data2$Location)
+
+# Create a plot for each location
+for (loc in locations) {
+  # Filter data for the current location
+  loc_data <- pie_data2 %>% filter(Location == loc)
+  
+  # Create the plot
+  p8 <- ggplot(loc_data, aes(x = Year, y = Percentage, fill = Spending_category)) +
+    geom_area(position = "fill") +
+    scale_fill_manual(values = c(wes_palette("Zissou1", n = length(unique(pie_data2$Spending_category)), type = "continuous"), "#D3D3D3")) +
+    labs(title = paste("Consumer Spending Percentage by Category in", loc, "(2011-2022)"),
+         x = "Year",
+         y = "Percentage",
+         fill = "Spending Category") +
+    theme_minimal() +
+    theme(
+      plot.title = element_text(size = 14, face = "bold"),
+      axis.text.x = element_text(angle = 45, hjust = 1, size = 8),
+      legend.position = "bottom",
+      legend.title = element_blank()
+    ) +
+    scale_y_continuous(labels = scales::percent_format()) +
+    scale_x_continuous(breaks = unique(loc_data$Year))
+  
+  # Save the plot with location-specific filename
+  ggsave(
+    filename = here::here("Figures", paste0("CONS_SPENDING_", gsub(" ", "_", loc), ".png")), 
+    plot = p8, 
+    width = 10, 
+    height = 8
+  )
+  
+  # Display the plot
+  print(p8)
+}
+
 
 ### Sectorial contribution to GVA, real, PPP-----
 data_filtered  <- data_merged %>% 
@@ -689,6 +786,69 @@ p5 <-  ggplot(pie_data, aes(x = Location, y = Percentage, fill = Sector)) +
 
 ggsave(filename = here::here("Figures", "GVA_SECTOR.png"), plot = p5, width = 8, height = 6)
 
+# Code for Location specific plots
+# Get unique locations
+locations <- unique(pie_data$Location)
 
-
+# Create a plot for each location
+for (loc in locations) {
+  # Filter data for the current location
+  loc_data <- pie_data %>% filter(Location == loc)
+  
+  # Get start and end years
+  start_year <- min(loc_data$Year)
+  end_year <- max(loc_data$Year)
+  
+  # Prepare start and end label data
+  start_labels <- loc_data %>%
+    filter(Year == start_year) %>%
+    group_by(Sector) %>%
+    mutate(cumulative = cumsum(Percentage) - 0.5 * Percentage)
+  
+  end_labels <- loc_data %>%
+    filter(Year == end_year) %>%
+    group_by(Sector) %>%
+    mutate(cumulative = cumsum(Percentage) - 0.5 * Percentage)
+  
+  # Create the plot
+  p9 <- ggplot(loc_data, aes(x = Year, y = Percentage, fill = Sector)) +
+    geom_area(position = "fill") +
+    scale_fill_manual(values = c(wes_palette("Zissou1", n = length(unique(pie_data$Sector)), type = "continuous"), "#D3D3D3")) +
+    labs(title = paste("GVA Percentage by Sector in", loc, "(2011-2022)"),
+         x = "Year",
+         y = "Percentage",
+         fill = "Sector") +
+    theme_minimal() +
+    theme(
+      plot.title = element_text(size = 14, face = "bold"),
+      axis.text.x = element_text(angle = 45, hjust = 1, size = 8),
+      legend.position = "bottom",
+      legend.title = element_blank()
+    ) +
+    scale_y_continuous(labels = scales::percent_format()) +
+    scale_x_continuous(breaks = unique(loc_data$Year)) +
+    geom_text_repel(data = start_labels,
+                    aes(x = start_year, y = cumulative, label = paste(Sector, scales::percent(Percentage, accuracy = 0.1))),
+                    direction = "y",
+                    nudge_x = -0.5,
+                    segment.color = "grey50",
+                    size = 3) +
+    geom_text_repel(data = end_labels,
+                    aes(x = end_year, y = cumulative, label = paste(Sector, scales::percent(Percentage, accuracy = 0.1))),
+                    direction = "y",
+                    nudge_x = 0.5,
+                    segment.color = "grey50",
+                    size = 3)
+  
+  # Save the plot with location-specific filename
+  ggsave(
+    filename = here::here("Figures", paste0("GVA_SECTOR_", gsub(" ", "_", loc), ".png")), 
+    plot = p9, 
+    width = 12,  # Increased width to accommodate labels
+    height = 8
+  )
+  
+  # Display the plot
+  print(p9)
+}
 
