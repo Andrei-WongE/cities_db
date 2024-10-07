@@ -320,80 +320,132 @@ table(data_merged$category_var)
 # Convert category_var to integer
 data_merged$category_int <- as.integer(data_merged$category_var)
 
+# Convert Year to numeric
+data_merged$Year <- as.numeric(as.character(data_merged$Year))
+
 ### Total Population-----
+require(scales)
+
 data_merged <- data_merged %>%
   mutate(POPTOTT = as.numeric(POPTOTT)) %>%
-  mutate(Total_population = POPTOTT)
+  mutate(Total_population = POPTOTT)  
+  
+# Order of locations based on their last data point
+location_order <- data_merged %>%
+  group_by(Location) %>%
+  summarize(last_value = last(Total_population)) %>%
+  arrange(desc(last_value)) %>%
+  pull(Location)
 
-p7 <- ggplot(data_merged, aes(x = Year
-                              , y = Total_population
-                              , color = factor(Location, levels = location_order))) +
-  geom_line(size = 1.5) +  # Increase the line width
+data_merged$Location <- factor(data_merged$Location, levels = location_order)
+
+# Last values based on combination of Location and category_var
+last_values <- data_merged %>%
+  group_by(Location, category_var) %>%
+  slice_max(Year) %>%
+  ungroup() %>%
+  arrange(desc(Total_population))
+
+interaction_levels <- interaction(last_values$Location, last_values$category_var, drop = TRUE)
+
+p7 <- ggplot(data_merged, aes(x = Year,
+                              y = Total_population,
+                              color = interaction(Location, category_var),
+                              group = interaction(Location, category_var))) +
+  geom_line(size = 1.5) +
   geom_point() +
-  scale_color_manual(values = wes_palette("Zissou1", n = length(unique(data_merged$Location))
-                                          , type = "continuous")) +
-labs(title = "Total Population by Category and City (2011-2022)",
+  scale_color_manual(values = wes_palette("Zissou1", n = length(interaction_levels), type = "continuous"),
+                     breaks = interaction_levels,
+                     labels = levels(interaction_levels)) +
+  labs(title = "Total Population by Category and City (2011-2022)",
        x = "Year",
-       y = "Total Population") +
-  theme_minimal()
+       y = "Total Population (thousands)") +
+  theme_minimal() 
 
-# Add labels at the end of line
-# p7 + geom_text_repel(data = data_merged %>% group_by(Location) %>% filter(Year == max(Year)),
-#                      aes(label = Location), nudge_x = 0.5, na.rm = TRUE)
+# Labels for ggrepel
+label_data <- data_merged %>%
+  group_by(Location, category_var) %>%
+  slice_max(Year) %>%
+  ungroup()
+
+p7 <- p7 +
+  geom_text_repel(data = label_data,
+                  aes(label = paste0(Location, "-", category_var, "\n", 
+                                     comma(round(Total_population), accuracy = 1))),
+                  nudge_x = 1,  # Adjust this value to move labels horizontally
+                  direction = "y",
+                  hjust = 0,
+                  segment.size = 0.2,
+                  segment.color = "grey50",
+                  box.padding = 0.5,
+                  point.padding = 0.5,
+                  force = 2,
+                  size = 3) +  # Adjust text size if needed
+  theme(legend.position = "none") +  # Remove legend as labels are now on the plot
+  scale_x_continuous(limits = c(min(data_merged$Year), max(data_merged$Year) + 1))  # Extend x-axis for labels
 
 ggsave(filename = here("Figures", "TOT_POP.png"), plot = p7, width = 10, height = 8)
 
 ### Total Employment-----
+create_population_plot(data_merged,
+                       variable_name = "EMPTOTT",
+                       title = "Total Employment by Category and City",
+                       x_label = "Year",
+                       y_label = "Total Employment (thousands)",
+                       save_plot = TRUE,
+                       filename = "TOT_EMP.png"
+                       )
 
-# Convert Year to numeric
-data_merged$Year <- as.numeric(as.character(data_merged$Year))
-
-# Order of locations based on their last data point
-location_order <- data_merged %>%
-  group_by(Location) %>%
-  summarise(TotalEmp = sum(EMPTOTT, na.rm = TRUE)) %>%
-  arrange(desc(TotalEmp)) %>%
-  pull(Location)
-
-p1 <- ggplot(data_merged, aes(x = Year
-                              , y = EMPTOTT
-                              , color = factor(Location, levels = location_order))) +
-  geom_line(linewidth = 1.2) +  # Adjust the size to change line thickness
-  labs(title = "Total Employment",
-       x = "Year",
-       y = "Total Employment",
-       color = "Location") +
-  theme_minimal() +
-  scale_x_continuous(limits = c(2011, 2022), breaks = seq(2011, 2022, by = 1)) +
-  scale_y_continuous(n.breaks = 4, labels = scales::comma) +
-  theme(legend.position = "right") +
-  scale_color_manual(values = wes_palette("Zissou1", n = length(unique(data_merged$Location))
-                                          , type = "continuous"))
-
-# Add labels at the end of the lines
-p1 <- p1 + geom_text_repel(data = data_merged %>% group_by(Location, category_var) %>% filter(Year == max(Year)),
-                           aes(label = Location),
-                           nudge_x = 0.5,  # Adjust this value to move the labels further to the right
-                           direction = "y",
-                           hjust = 0,
-                           segment.color = "grey50",
-                           size = 3,  # Adjust the size of the text
-                           box.padding = 0.3,  # Adjust padding around the text
-                           point.padding = 0.5,  # Adjust padding around the points
-                           max.overlaps = Inf)  # Allow for more overlaps
-
-ggsave(filename = here::here("Figures", "TOT_EMP.png"), plot = p1, width = 8, height = 6)
+# 
+# p1 <- ggplot(data_merged, aes(x = Year
+#                               , y = EMPTOTT
+#                               , color = factor(Location, levels = location_order))) +
+#   geom_line(linewidth = 1.2) +  # Adjust the size to change line thickness
+#   labs(title = "Total Employment",
+#        x = "Year",
+#        y = "Total Employment",
+#        color = "Location") +
+#   theme_minimal() +
+#   scale_x_continuous(limits = c(2011, 2022), breaks = seq(2011, 2022, by = 1)) +
+#   scale_y_continuous(n.breaks = 4, labels = scales::comma) +
+#   theme(legend.position = "right") +
+#   scale_color_manual(values = wes_palette("Zissou1", n = length(unique(data_merged$Location))
+#                                           , type = "continuous"))
+# 
+# # Add labels at the end of the lines
+# p1 <- p1 + geom_text_repel(data = data_merged %>% group_by(Location, category_var) %>% filter(Year == max(Year)),
+#                            aes(label = Location),
+#                            nudge_x = 0.5,  # Adjust this value to move the labels further to the right
+#                            direction = "y",
+#                            hjust = 0,
+#                            segment.color = "grey50",
+#                            size = 3,  # Adjust the size of the text
+#                            box.padding = 0.3,  # Adjust padding around the text
+#                            point.padding = 0.5,  # Adjust padding around the points
+#                            max.overlaps = Inf)  # Allow for more overlaps
+# 
+# ggsave(filename = here::here("Figures", "TOT_EMP.png"), plot = p1, width = 8, height = 6)
 
 
 ### Total GDP-----
-(ggplot(data, aes(x = Year, y = GDPTOTUSC, color = Location)) +
-   geom_point(size = 3) +
-   labs(title = "Total GDP",
-        x = "Year",
-        y = "Total GDP") +
-   theme_minimal() +
-   scale_x_continuous(breaks = seq(min(data$Year), max(data$Year), by = 5)) +
-   scale_y_continuous(n.breaks = 4))
+create_population_plot(data_merged,
+                       variable_name = "GDPTOTUSC",
+                       title = "Total GDP by Category and City",
+                       x_label = "Year",
+                       y_label = "Total GDP (millions)",
+                       save_plot = TRUE,
+                       filename = "TOT_GDP.png"
+)
+
+
+# (ggplot(data, aes(x = Year, y = GDPTOTUSC, color = Location)) +
+#    geom_point(size = 3) +
+#    labs(title = "Total GDP",
+#         x = "Year",
+#         y = "Total GDP") +
+#    theme_minimal() +
+#    scale_x_continuous(breaks = seq(min(data$Year), max(data$Year), by = 5)) +
+#    scale_y_continuous(n.breaks = 4))
 
 
 
@@ -402,6 +454,16 @@ data_merged <- data_merged %>%
   mutate(GDPTOTPPPC = as.numeric(GDPTOTPPPC),
          POPTOTT = as.numeric(POPTOTT),) %>%
   mutate(GDP_per_capita_PPP = GDPTOTPPPC / POPTOTT)
+
+create_population_plot(data_merged,
+                       variable_name = "GDP_per_capita_PPP",
+                       title = "GDP per capita PPP by Category and City",
+                       x_label = "Year",
+                       y_label = "GDP per capita PPP (thousands)",
+                       save_plot = TRUE,
+                       filename = "R_GDP_PPP.png"
+)
+
 
 # ggplot(data_merged, aes(x = Location, y = GDP_per_capita_PPP, fill = category_var)) +
 #   geom_bar(stat = "identity", position = "dodge") +
@@ -412,25 +474,28 @@ data_merged <- data_merged %>%
 #   theme_minimal() +
 #   facet_wrap(~ Year)
 
-p1 <- ggplot(data_merged, aes(x = Year, y = EMPTOTT, color = category_var, group = interaction(Location, category_var))) +
-  geom_line(linewidth = 1.1) +
-  geom_point() +
-  scale_color_manual(values = wes_palette("Zissou1", n = length(unique(data_merged$category_var)), type = "continuous")) +
-  labs(title = "Total Employment by Category and City (2011-2022)",
-       x = "Year",
-       y = "Total Employment",
-       color = "Category") +
-  theme_minimal()
-
-# Add labels at the end of the line
-(p1 + geom_text_repel(data = data_merged %>% group_by(Location, category_var) %>% filter(Year == max(Year)),
-                           aes(label = Location),
-                           nudge_x = 1,  # Adjust this value to move the labels further to the right
-                           direction = "y",
-                           hjust = 0,
-                           segment.color = "grey50"))
-
-ggsave(filename = here::here("Figures", "TOT_EMP.png"), plot = p1, width = 8, height = 6)
+# p1 <- ggplot(data_merged, aes(x = Year
+#                               , y = EMPTOTT
+#                               , color = category_var
+#                               , group = interaction(Location, category_var))) +
+#   geom_line(linewidth = 1.1) +
+#   geom_point() +
+#   scale_color_manual(values = wes_palette("Zissou1", n = length(unique(data_merged$category_var)), type = "continuous")) +
+#   labs(title = "Total Employment by Category and City (2011-2022)",
+#        x = "Year",
+#        y = "Total Employment",
+#        color = "Category") +
+#   theme_minimal()
+# 
+# # Add labels at the end of the line
+# (p1 + geom_text_repel(data = data_merged %>% group_by(Location, category_var) %>% filter(Year == max(Year)),
+#                            aes(label = Location),
+#                            nudge_x = 1,  # Adjust this value to move the labels further to the right
+#                            direction = "y",
+#                            hjust = 0,
+#                            segment.color = "grey50"))
+# 
+# ggsave(filename = here::here("Figures", "TOT_EMP.png"), plot = p1, width = 8, height = 6)
 
 ### Total Employment as a Pct of the working-age population-----
 data_merged <- data_merged %>%
