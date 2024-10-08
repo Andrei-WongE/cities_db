@@ -292,12 +292,12 @@ data_ucdb <- ucdb_full_vars %>% filter(Location %in% cities)
 # labels_vector <- setNames(labels$Label, labels$Variable)
 # data_merged <- setNames(data_merged, labels_vector[names(data_merged)])
 
-# Filter the data for the required years (2011-2022)
+# Filter the data for the required years (2011-2019)
 data_filtered <- data %>%
-  filter(Year >= 2011 & Year <= 2022)
+  filter(Year >= 2011 & Year <= 2019)
 
 # Extract PPP data from the World Bank API
-ppp_data <- WDI(indicator = "PA.NUS.PPP", start = 2011, end = 2022, extra = TRUE) %>% 
+ppp_data <- WDI(indicator = "PA.NUS.PPP", start = 2011, end = 2019, extra = TRUE) %>% 
   mutate(year = as.character(year))
 
 # Merge the PPP data with the cities data
@@ -358,7 +358,7 @@ data_merged <- data_merged %>%
   
 create_population_plot(data_merged,
                        variable_name = "Total_population",
-                       title = "Total Population by Category and City (2011-2022)",
+                       title = "Total Population by Category and City (2011-2019)",
                        x_label = "Year",
                        y_label = "Total Population (thousands)",
                        save_plot = TRUE,
@@ -392,7 +392,7 @@ create_population_plot(data_merged,
 #   scale_color_manual(values = wes_palette("Zissou1", n = length(interaction_levels), type = "continuous"),
 #                      breaks = interaction_levels,
 #                      labels = levels(interaction_levels)) +
-#   labs(title = "Total Population by Category and City (2011-2022)",
+#   labs(title = "Total Population by Category and City (2011-2019)",
 #        x = "Year",
 #        y = "Total Population (thousands)") +
 #   theme_minimal() 
@@ -424,7 +424,7 @@ create_population_plot(data_merged,
 ### Total Employment-----
 create_population_plot(data_merged,
                        variable_name = "EMPTOTT",
-                       title = "Total Employment by Category and City (2011-2022)",
+                       title = "Total Employment by Category and City (2011-2019)",
                        x_label = "Year",
                        y_label = "Total Employment (thousands)",
                        save_plot = TRUE,
@@ -441,7 +441,7 @@ create_population_plot(data_merged,
 #        y = "Total Employment",
 #        color = "Location") +
 #   theme_minimal() +
-#   scale_x_continuous(limits = c(2011, 2022), breaks = seq(2011, 2022, by = 1)) +
+#   scale_x_continuous(limits = c(2011, 2019), breaks = seq(2011, 2019, by = 1)) +
 #   scale_y_continuous(n.breaks = 4, labels = scales::comma) +
 #   theme(legend.position = "right") +
 #   scale_color_manual(values = wes_palette("Zissou1", n = length(unique(data_merged$Location))
@@ -469,20 +469,20 @@ data_merged <- data_merged %>%
                   , EMPA
                   , EMPHJ), as.numeric)) %>%
   mutate(
-    Public_Services = EMPO_Q / EMPTOTT,
-    Industry = EMPB_F / EMPTOTT,
-    Fiancial_Busines_Serices= EMPK_N / EMPTOTT,
-    Consumer_services = EMPGIR_U / EMPTOTT,
-    Agriculture = EMPA / EMPTOTT,
-    Transport_Information_Communic_Services = EMPHJ / EMPTOTT
+    Public_Services_Emp_Pct = EMPO_Q / EMPTOTT,
+    Industry_Emp_Pct = EMPB_F / EMPTOTT,
+    Fiancial_Busines_Serices_Emp_Pct = EMPK_N / EMPTOTT,
+    Consumer_services_Emp_Pct = EMPGIR_U / EMPTOTT,
+    Agriculture_Emp_Pct = EMPA / EMPTOTT,
+    Transport_Information_Communic_Services_Emp_Pct = EMPHJ / EMPTOTT
   )
 
-columns_to_pivot <- c("Public_Services"
-                      , "Industry"
-                      , "Fiancial_Busines_Serices"
-                      , "Consumer_services"
-                      , "Agriculture"
-                      , "Transport_Information_Communic_Services")
+columns_to_pivot <- c("Public_Services_Emp_Pct",
+                      "Industry_Emp_Pct",
+                      "Fiancial_Busines_Serices_Emp_Pct",
+                      "Consumer_services_Emp_Pct",
+                      "Agriculture_Emp_Pct",
+                      "Transport_Information_Communic_Services_Emp_Pct")
 
 pie_data3 <- data_merged %>%
   pivot_longer(cols = all_of(columns_to_pivot)
@@ -492,7 +492,7 @@ pie_data3 <- data_merged %>%
 p10 <- ggplot(pie_data3, aes(x = Location, y = Percentage, fill = Employment_sector)) +
   geom_bar(stat = "identity", position = "fill") +
   scale_fill_manual(values = c(wes_palette("Zissou1", n = length(unique(pie_data3$Employment_sector)), type = "continuous"), "#D3D3D3")) + # Adding an extra color
-  labs(title = "Enployment Sector Percentage by Selected Categories (2011-2022)",
+  labs(title = "Enployment Sector Percentage by Selected Categories (2011-2019)",
        x = "Location",
        y = "Percentage") +
   theme_minimal() +
@@ -507,21 +507,21 @@ ggsave(filename = here::here("Figures", "EMP_SECTOR.png"), plot = p10, width = 8
 
 # Code for Location specific plots
 # Get unique locations
-locations <- unique(pie_data2$Location)
+locations <- unique(pie_data3$Location)
 
 # Create a plot for each location
 for (loc in locations) {
   # Filter data for the current location
-  loc_data <- pie_data2 %>% filter(Location == loc)
+  loc_data <- pie_data3 %>% filter(Location == loc)
   
   # Create the plot
-  p11 <- ggplot(loc_data, aes(x = Year, y = Percentage, fill = Spending_category)) +
+  p11 <- ggplot(loc_data, aes(x = Year, y = Percentage, fill = Employment_sector)) +
     geom_area(position = "fill") +
-    scale_fill_manual(values = c(wes_palette("Zissou1", n = length(unique(pie_data2$Spending_category)), type = "continuous"), "#D3D3D3")) +
-    labs(title = paste("Consumer Spending Percentage by Category in", loc, "(2011-2022)"),
+    scale_fill_manual(values = c(wes_palette("Zissou1", n = length(unique(pie_data3$Employment_sector)), type = "continuous"), "#D3D3D3")) +
+    labs(title = paste("Employment by Sector (percentage) by Category in", loc, "(2011-2019)"),
          x = "Year",
          y = "Percentage",
-         fill = "Spending Category") +
+         fill = "Employment Sector") +
     theme_minimal() +
     theme(
       plot.title = element_text(size = 14, face = "bold"),
@@ -582,7 +582,7 @@ create_population_plot(data_merged,
 # ggplot(data_merged, aes(x = Location, y = GDP_per_capita_PPP, fill = category_var)) +
 #   geom_bar(stat = "identity", position = "dodge") +
 #   scale_fill_manual(values = wes_palette("Zissou1", n = length(unique(data_merged$category_var)), type = "continuous")) +
-#   labs(title = "GDP per Capita PPP by Category and City (2011-2022)",
+#   labs(title = "GDP per Capita PPP by Category and City (2011-2019)",
 #        x = "City",
 #        y = "GDP per Capita PPP") +
 #   theme_minimal() +
@@ -595,12 +595,12 @@ create_population_plot(data_merged,
 #   geom_line(linewidth = 1.1) +
 #   geom_point() +
 #   scale_color_manual(values = wes_palette("Zissou1", n = length(unique(data_merged$category_var)), type = "continuous")) +
-#   labs(title = "Total Employment by Category and City (2011-2022)",
+#   labs(title = "Total Employment by Category and City (2011-2019)",
 #        x = "Year",
 #        y = "Total Employment",
 #        color = "Category") +
 #   theme_minimal()
-# 
+#
 # # Add labels at the end of the line
 # (p1 + geom_text_repel(data = data_merged %>% group_by(Location, category_var) %>% filter(Year == max(Year)),
 #                            aes(label = Location),
@@ -608,8 +608,100 @@ create_population_plot(data_merged,
 #                            direction = "y",
 #                            hjust = 0,
 #                            segment.color = "grey50"))
-# 
+#
 # ggsave(filename = here::here("Figures", "TOT_EMP.png"), plot = p1, width = 8, height = 6)
+
+# Code for Location specific plots
+# Get unique locations
+locations <- unique(data_merged$Location)
+
+# Create a plot for each location
+for (loc in locations) {
+  # Filter data for the current location
+  loc_data <- data_merged %>% 
+    filter(Location == loc) %>%
+    mutate(label = ifelse(Year == min(Year) | Year == max(Year), 
+                          scales::comma(GDP_per_capita_PPP), NA))
+  
+  # Create the plot
+  p16 <- ggplot(loc_data, aes(x = Year, y = GDP_per_capita_PPP)) +
+    geom_line(color = wes_palette("Zissou1")[1], size = 1) +
+    geom_point(color = wes_palette("Zissou1")[5], size = 3) +
+    geom_text_repel(
+      aes(label = label),
+      nudge_x = 0.5,
+      nudge_y = 0.5,
+      size = 3,
+      fontface = "bold",
+      box.padding = unit(0.35, "lines"),
+      point.padding = unit(0.5, "lines")
+    ) +
+    labs(title = paste("GDP per capita (Real, PPP) in", loc, "(2011-2019)"),
+         x = "Year",
+         y = "GDP per capita PPP (Real USD) (thousands)") +
+    theme_minimal() +
+    theme(
+      plot.title = element_text(size = 14, face = "bold"),
+      axis.text.x = element_text(angle = 45, hjust = 1, size = 8),
+      legend.position = "none"
+    ) +
+    scale_x_continuous(breaks = 2011:2019) +
+    scale_y_continuous(labels = scales::comma)
+  
+  # Save the plot with location-specific filename
+  ggsave(
+    filename = here::here("Figures", paste0("GDP_PPP_", gsub(" ", "_", loc), ".png")), 
+    plot = p16, 
+    width = 10, 
+    height = 6
+  )
+  
+  # Display the plot
+  print(p16)
+}
+
+# Bar chart 2019
+data_2019 <- data_merged %>%
+  filter(Year == 2019) %>%
+  arrange(category_var, desc(GDP_per_capita_PPP)) %>%
+  mutate(Location = factor(Location, levels = unique(Location)))  # Preserve order in plot
+
+# Create color palette (extend if needed for more categories)
+num_categories <- length(unique(data_2019$category_var))
+color_palette <- wes_palette("Zissou1", num_categories, type = "continuous")
+
+# Create the grouped bar chart
+p17 <- ggplot(data_2019, aes(x = Location, y = GDP_per_capita_PPP, fill = category_var)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = scales::comma(GDP_per_capita_PPP)), 
+            hjust = -0.1, 
+            size = 3, 
+            fontface = "bold") +
+  coord_flip() +  # Flip coordinates for horizontal bars
+  labs(title = "GDP per capita PPP by Location and Category (thousands), 2019",
+       x = "Location",
+       y = "GDP per capita PPP (Real USD)",
+       fill = "Category:") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16, face = "bold"),
+    axis.text.y = element_text(size = 10),
+    axis.title.y = element_blank(),  # Remove y-axis label as it's redundant
+    panel.grid.major.y = element_blank(),  # Remove horizontal grid lines
+    legend.position = "bottom"
+  ) +
+  scale_y_continuous(labels = scales::comma, 
+                     expand = expansion(mult = c(0, 0.15))) +  # Expand y-axis to fit labels
+  scale_fill_manual(values = color_palette)
+
+# Save the plot
+ggsave(
+  filename = here::here("Figures", "GDP_PPP_Bar_Chart_2019.png"), 
+  plot = p17, 
+  width = 14,  # Increased width to accommodate categories
+  height = 10
+)
+
 
 ### Total Employment as a Pct of the working-age population-----
 data_merged <- data_merged %>%
@@ -621,7 +713,7 @@ data_merged <- data_merged %>%
 
 create_population_plot(data_merged,
                        variable_name = "Total_Employment_Pct",
-                       title = "Total Employment Percentage of Working-Age Population by Category and City (2011-2022)",
+                       title = "Total Employment Percentage of Working-Age Population by Category and City (2011-2019)",
                        x_label = "Year",
                        y_label = "Total Employment (percentage)",
                        save_plot = TRUE,
@@ -643,7 +735,7 @@ create_population_plot(data_merged,
 #   geom_line(size = 1.5) +  # Increase the line width
 #   geom_point() +
 #   scale_color_manual(values = wes_palette("Zissou1", n = length(unique(interaction(data_merged$Location, data_merged$category_var))), type = "continuous")) +
-#   labs(title = "Total Employment Percentage of Working-Age Population by Category and City (2011-2022)",
+#   labs(title = "Total Employment Percentage of Working-Age Population by Category and City (2011-2019)",
 #        x = "Year",
 #        y = "Total Employment Percentage") +
 #   theme_minimal()
@@ -668,7 +760,7 @@ data_merged <- data_merged %>%
 
 create_population_plot(data_merged,
                        variable_name = "Avg_Household_Income_PPP",
-                       title = "Average Household Income PPP by Category and City (2011-2022)",
+                       title = "Average Household Income PPP by Category and City (2011-2019)",
                        x_label = "Year",
                        y_label = "High skills employment proportion of total workforce (PPP adjusted)",
                        save_plot = TRUE,
@@ -687,7 +779,7 @@ create_population_plot(data_merged,
 #   geom_line(size = 1.5) +  # Increase the line width
 #   geom_point() +
 #   scale_color_manual(values = wes_palette("Zissou1", n = length(unique(data_merged$category_var)), type = "continuous")) +
-#   labs(title = "Average Household Income PPP by Category and City (2011-2022)",
+#   labs(title = "Average Household Income PPP by Category and City (2011-2019)",
 #        x = "Year",
 #        y = "Average Household Income PPP") +
 #   theme_minimal()
@@ -721,7 +813,7 @@ data_merged <- data_merged %>%
 
 create_population_plot(data_merged,
                        variable_name = "High_Skills_Employment_Pct",
-                       title = "Proportion of Industry and Finance Sector Enployment by Category and City (2011-2022)",
+                       title = "Proportion of Industry and Finance Sector Enployment by Category and City (2011-2019)",
                        x_label = "Year",
                        y_label = "Average Household Income (percentaje)",
                        save_plot = TRUE,
@@ -761,7 +853,7 @@ pie_data2 <- data_merged %>%
 p6 <- ggplot(pie_data2, aes(x = Location, y = Percentage, fill = Spending_category)) +
   geom_bar(stat = "identity", position = "fill") +
   scale_fill_manual(values = c(wes_palette("Zissou1", n = length(unique(pie_data2$Spending_category)), type = "continuous"), "#D3D3D3")) + # Adding an extra color
-  labs(title = "Consumer Spending Percentage by Selected Categories (2011-2022)",
+  labs(title = "Consumer Spending Percentage by Selected Categories (2011-2019)",
        x = "Location",
        y = "Percentage") +
   theme_minimal() +
@@ -786,7 +878,7 @@ for (loc in locations) {
   p8 <- ggplot(loc_data, aes(x = Year, y = Percentage, fill = Spending_category)) +
     geom_area(position = "fill") +
     scale_fill_manual(values = c(wes_palette("Zissou1", n = length(unique(pie_data2$Spending_category)), type = "continuous"), "#D3D3D3")) +
-    labs(title = paste("Consumer Spending Percentage by Category in", loc, "(2011-2022)"),
+    labs(title = paste("Consumer Spending Percentage by Category in", loc, "(2011-2019)"),
          x = "Year",
          y = "Percentage",
          fill = "Spending Category") +
@@ -858,7 +950,7 @@ pie_data <- data_merged %>%
 p5 <-  ggplot(pie_data, aes(x = Location, y = Percentage, fill = Sector)) +
   geom_bar(stat = "identity", position = "fill") +
   scale_fill_manual(values = c(wes_palette("Zissou1", n = length(unique(pie_data$Sector)), type = "continuous"), "#D3D3D3")) + # Adding an extra color
-  labs(title = "GVA Percentage by Sector (2011-2022)",
+  labs(title = "GVA Percentage by Sector (2011-2019)",
        x = "Location",
        y = "Percentage") +
   theme_minimal() +
@@ -898,7 +990,7 @@ for (loc in locations) {
   p9 <- ggplot(loc_data, aes(x = Year, y = Percentage, fill = Sector)) +
     geom_area(position = "fill") +
     scale_fill_manual(values = c(wes_palette("Zissou1", n = length(unique(pie_data$Sector)), type = "continuous"), "#D3D3D3")) +
-    labs(title = paste("GVA Percentage by Sector in", loc, "(2011-2022)"),
+    labs(title = paste("GVA Percentage by Sector in", loc, "(2011-2019)"),
          x = "Year",
          y = "Percentage",
          fill = "Sector") +
@@ -935,4 +1027,6 @@ for (loc in locations) {
   # Display the plot
   print(p9)
 }
+
+### Productivity per worker for each of the sectors (in real usd) ----
 

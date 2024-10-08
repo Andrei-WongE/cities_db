@@ -1,6 +1,3 @@
-#@
-#@
-
 create_population_plot <- function(data, 
                                    location_var = "Location", 
                                    category_var = "category_var", 
@@ -54,19 +51,36 @@ create_population_plot <- function(data,
          y = y_label) +
     theme_minimal()
   
-  # Labels for ggrepel
-  label_data <- data_merged %>%
-    group_by(!!sym(location_var), !!sym(category_var)) %>%
-    slice_max(!!sym(year_var)) %>%
-    ungroup()
-  
   # Function to format numbers with comma separators
   format_number <- function(x) {
     format(round(x), big.mark = ",", scientific = FALSE)
   }
   
+  # Labels for start of lines
+  start_label_data <- data_merged %>%
+    group_by(!!sym(location_var), !!sym(category_var)) %>%
+    slice_min(!!sym(year_var)) %>%
+    ungroup()
+  
+  # Labels for end of lines
+  end_label_data <- data_merged %>%
+    group_by(!!sym(location_var), !!sym(category_var)) %>%
+    slice_max(!!sym(year_var)) %>%
+    ungroup()
+  
   p <- p +
-    geom_text_repel(data = label_data,
+    geom_text_repel(data = start_label_data,
+                    aes(label = format_number(!!sym(variable_name))),
+                    nudge_x = -1,
+                    direction = "y",
+                    hjust = 1,
+                    segment.size = 0.2,
+                    segment.color = "grey50",
+                    box.padding = 0.5,
+                    point.padding = 0.5,
+                    force = 2,
+                    size = label_size) +
+    geom_text_repel(data = end_label_data,
                     aes(label = paste0(!!sym(location_var), "-", !!sym(category_var), "\n", 
                                        format_number(!!sym(variable_name)))),
                     nudge_x = 1,
@@ -79,7 +93,7 @@ create_population_plot <- function(data,
                     force = 2,
                     size = label_size) +
     theme(legend.position = "none") +
-    scale_x_continuous(limits = c(min(data_merged[[year_var]]), max(data_merged[[year_var]]) + 1))
+    scale_x_continuous(limits = c(min(data_merged[[year_var]]) - 1, max(data_merged[[year_var]]) + 1))
   
   if (save_plot) {
     ggsave(filename = here("Figures", filename), plot = p, width = width, height = height)
