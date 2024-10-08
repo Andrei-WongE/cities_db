@@ -1070,4 +1070,23 @@ p18 <-  ggplot(pie_data5, aes(x = Location, y = Percentage, fill = Sector_produc
 ggsave(filename = here::here("Figures", "SECTOR_PRODUCT_2019.png"), plot = p18, width = 8, height = 6)
 
 
+# Output database -----
+require(lubridate)
+
+today_date <- format(Sys.Date(), "%m-%d-%Y")
+file_name <- paste0("Figures_data_", today_date, ".csv")
+
+# Select the specified columns
+selected_columns <- c("Locationcode", "Location", "Country", "Year", "category_var", "category_group", 
+                      "Total_population", "Public_Services_Emp_Pct", "Industry_Emp_Pct", "Fiancial_Busines_Serices_Emp_Pct",
+                      "Consumer_services_Emp_Pct", "Agriculture_Emp_Pct", "Transport_Information_Communic_Services_Emp_Pct",
+                      "GDP_per_capita_PPP", "Agriculture_GVA_Pct", "Consumer_services_GVA_Pct", "Financial_business_services_GVA_Pct",
+                      "Industry_GVA_Pct", "Public_services_GVA_Pct", "Transport_Information_Communic_Services_GVA_Pct", 
+                      "Agriculture_Productivity", "Consumer_services_Productivity", "Financial_business_services_Productivity", 
+                      "Industry_Productivity", "Public_services_Productivity", "Transport_Information_Communic_Services_Productivity")
+
+write.csv(data_merged[selected_columns], file_name, row.names = FALSE)
+
+# Write the CSV file
+write.csv(data_merged, file_name, row.names = FALSE)
 
