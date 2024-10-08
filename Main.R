@@ -922,14 +922,16 @@ data_merged <- data_merged %>%
          GVAGIR_UPPPC = as.numeric(GVAGIR_UPPPC),
          GVAAPPPC = as.numeric(GVAAPPPC),
          GVAK_NPPPC = as.numeric(GVAK_NPPPC),
-         GVAK_NPPPC = as.numeric(GVAK_NPPPC),
-         GVAB_FPPPC = as.numeric(GVAB_FPPPC),        
+         GVAB_FPPPC = as.numeric(GVAB_FPPPC),
+         GVAO_QPPPC = as.numeric(GVAO_QPPPC),
+         GVAHJLCC = as.numeric(GVAHJLCC),
          ) %>%
   mutate(Agriculture_GVA_Pct = GVAAPPPC / GVATOTPPPC
          , Consumer_services_GVA_Pct = GVAGIR_UPPPC / GVATOTPPPC
          , Financial_business_services_GVA_Pct = GVAK_NPPPC / GVATOTPPPC
-         , Industry_GVA_Pct = GVAK_NPPPC / GVATOTPPPC          
-         , Public_services_GVA_Pct = GVAB_FPPPC / GVATOTPPPC 
+         , Industry_GVA_Pct = GVAB_FPPPC / GVATOTPPPC          
+         , Public_services_GVA_Pct =  GVAO_QPPPC / GVATOTPPPC 
+         , Transport_Information_Communic_Services_GVA_Pct =  GVAHJLCC / GVATOTPPPC
          ) # Decimal format
 
 columns_to_pivot <- c("Agriculture_GVA_Pct", "Consumer_services_GVA_Pct",
@@ -1029,4 +1031,43 @@ for (loc in locations) {
 }
 
 ### Productivity per worker for each of the sectors (in real usd) ----
+# Define productivity as GVA per worker
+
+data_merged <- data_merged %>%
+  mutate(Agriculture_Productivity = GVAAPPPC / EMPA
+                     , Consumer_services_Productivity = GVAGIR_UPPPC / EMPGIR_U
+                     , Financial_business_services_Productivity = GVAK_NPPPC / EMPK_N
+                     , Industry_Productivity = GVAK_NPPPC / EMPB_F          
+                     , Public_services_Productivity = GVAB_FPPPC / EMPO_Q
+                     , Transport_Information_Communic_Services_Productivity = GVAHJLCC / EMPHJ
+                     ) # Decimal format
+
+columns_to_pivot <- c("Agriculture_Productivity", "Consumer_services_Productivity",
+                      "Financial_business_services_Productivity", "Industry_Productivity",
+                      "Public_services_Productivity", "Transport_Information_Communic_Services_Productivity")
+
+
+pie_data5 <- data_merged %>%
+  pivot_longer(cols = all_of(columns_to_pivot), names_to = "Sector_productivty"
+               , values_to = "Percentage") %>% 
+  filter(Year == 2019)
+
+p18 <-  ggplot(pie_data5, aes(x = Location, y = Percentage, fill = Sector_productivty)) +
+  geom_bar(stat = "identity", position = "fill") +
+  scale_fill_manual(values = c(wes_palette("Zissou1"
+                                           , n = length(unique(pie_data$Sector))
+                                           , type = "continuous"), "#D3D3D3")) + # Adding an extra color
+  labs(title = "Sector Productivity by City, 2019",
+       x = "Location",
+       y = "Percentage") +
+  theme_minimal() +
+  facet_wrap(~ Year, scales = "free", labeller = label_both) +
+  theme(strip.text = element_text(size = 8)) +
+  scale_y_continuous(labels = scales::percent_format()) +
+  geom_text(aes(label = scales::percent(Percentage, accuracy = 0.1)),
+            position = position_fill(vjust = 0.5), size = 2)
+
+ggsave(filename = here::here("Figures", "SECTOR_PRODUCT_2019.png"), plot = p18, width = 8, height = 6)
+
+
 
