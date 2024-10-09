@@ -316,7 +316,7 @@ numeric_columns <- c("PEDYHHPUSN", "FCTOTPPPC", "FCTOTUSN", "FCTOTUSC", "EMPA", 
 #                "Singapore", "Bangkok", "Kuala Lumpur", "Hangzhou", "Quingdao", "Tianjin", "Xiamen")
 
 locations <- c("Colombo", "Mumbai", "Kochi", "Chittagong", "Ho Chi Minh City", "Surabaya",
-               "Singapore", "Bangkok", "Kuala Lumpur", "Hangzhou", "Quingdao")
+               "Singapore", "Bangkok", "Kuala Lumpur", "Hangzhou", "Qinhuangdao")
 
 
 data_merged <- data_merged %>% 
@@ -324,12 +324,13 @@ data_merged <- data_merged %>%
   # mutate(across(everything(), ~na_if(., "NA"))) %>% 
   mutate(across(all_of(numeric_columns), as.numeric)) %>% 
   mutate(category_var = case_when(
-    Location %in% c("Colombo") ~ 1,
-    Location %in% c("Mumbai", "Kochi", "Chittagong", "Ho Chi Minh City", "Surabaya") ~ 2,
-    Location %in% c("Singapore", "Bangkok", "Kuala Lumpur", "Hangzhou", "Quingdao") ~ 3
+    str_detect(Location, "Colombo") ~ 1,
+    str_detect(Location, "Mumbai|Kochi|Chittagong|Ho Chi Minh City|Surabaya") ~ 2,
+    str_detect(Location, "Singapore|Bangkok|Kuala Lumpur|Hangzhou|Qinhuangdao") ~ 3
   )) %>% 
-  filter(Location %in% locations| Location == "") %>% 
+  filter(sapply(locations, function(x) str_detect(Location, fixed(x))) %>% rowSums() > 0 | Location == "") %>% 
   filter(Locationcode != "SGP") #2 sets of Singapore data!!! Kept SGP2
+
 
 # Table of category_var
 table(data_merged$category_var)
