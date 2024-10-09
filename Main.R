@@ -476,13 +476,13 @@ data_merged <- data_merged %>%
   mutate(
     Public_Services_Emp_Pct = EMPO_Q / EMPTOTT,
     Industry_Emp_Pct = EMPB_F / EMPTOTT,
-    Fiancial_Busines_Serices_Emp_Pct = EMPK_N / EMPTOTT,
+    Financial_Busines_Serices_Emp_Pct = EMPK_N / EMPTOTT,
     Consumer_services_Emp_Pct = EMPGIR_U / EMPTOTT,
     Agriculture_Emp_Pct = EMPA / EMPTOTT,
     Transport_Information_Communic_Services_Emp_Pct = EMPHJ / EMPTOTT
   )
 
-columns_to_pivot <- c("Public_Services_Emp_Pct",
+columns_to_pivot_Emp_Pct <- c("Public_Services_Emp_Pct",
                       "Industry_Emp_Pct",
                       "Fiancial_Busines_Serices_Emp_Pct",
                       "Consumer_services_Emp_Pct",
@@ -490,7 +490,7 @@ columns_to_pivot <- c("Public_Services_Emp_Pct",
                       "Transport_Information_Communic_Services_Emp_Pct")
 
 pie_data3 <- data_merged %>%
-  pivot_longer(cols = all_of(columns_to_pivot)
+  pivot_longer(cols = all_of(columns_to_pivot_Emp_Pct)
                , names_to = "Employment_sector"
                , values_to = "Percentage")
 
@@ -523,7 +523,7 @@ for (loc in locations) {
   p11 <- ggplot(loc_data, aes(x = Year, y = Percentage, fill = Employment_sector)) +
     geom_area(position = "fill") +
     scale_fill_manual(values = c(wes_palette("Zissou1", n = length(unique(pie_data3$Employment_sector)), type = "continuous"), "#D3D3D3")) +
-    labs(title = paste("Employment by Sector (percentage) by Category in", loc, "(2011-2019)"),
+    labs(title = paste("Employment by Sector (percentage) by Category in", loc, "(2019)"),
          x = "Year",
          y = "Percentage",
          fill = "Employment Sector") +
@@ -539,16 +539,230 @@ for (loc in locations) {
   
   # Save the plot with location-specific filename
   ggsave(
-    filename = here::here("Figures", paste0("EMP_SECTOR_", gsub(" ", "_", loc), ".png")), 
+    filename = here::here("Figures", paste0("EMP_SECTOR_", gsub(" ", "_", loc),"2019_FINAL" , ".png")), 
     plot = p11, 
     width = 10, 
     height = 8
   )
   
-  # Display the plot
   print(p11)
 }
 
+## Only for one year, stacket bar
+pie_data3 <- data_merged %>%
+  pivot_longer(cols = all_of(columns_to_pivot_Emp_Pct),
+               names_to = "Employment_sector",
+               values_to = "Percentage") %>%
+  filter(Year == 2019)
+
+# Get unique locations
+locations <- unique(pie_data3$Location)
+
+# Create a plot for each location
+for (loc in locations) {
+  # Filter data for the current location and year 2019
+  loc_data <- pie_data3 %>% 
+    filter(Location == loc, Year == 2019) %>%
+    group_by(category_var) %>%
+    mutate(category_total = sum(Percentage)) %>%
+    ungroup() %>%
+    arrange(desc(category_total), desc(Percentage))
+  
+  # Create a factor for Employment_sector that preserves the order
+  loc_data$Employment_sector <- factor(loc_data$Employment_sector, levels = unique(loc_data$Employment_sector))
+  
+  # Create the plot
+  p11 <- ggplot(loc_data, aes(x = category_var, y = Percentage, fill = Employment_sector)) +
+    geom_bar(stat = "identity", position = "stack") +
+    scale_fill_manual(values = c(wes_palette("Zissou1", n = length(unique(loc_data$Employment_sector)), type = "continuous"), "#D3D3D3")) +
+    labs(title = paste("Employment by Sector in", loc, "(2019)"),
+         subtitle = "Employment Sector",
+         x = "Category",
+         y = "Percentage",
+         fill = "Employment Sector") +
+    theme_minimal() +
+    theme(
+      plot.title = element_text(size = 14, face = "bold"),
+      plot.subtitle = element_text(size = 12),
+      axis.text.x = element_text(size = 10, angle = 45, hjust = 1),
+      axis.text.y = element_text(size = 8),
+      legend.position = "right",
+      legend.title = element_text(size = 10),
+      legend.text = element_text(size = 8)
+    ) +
+    scale_y_continuous(labels = scales::percent_format(), limits = c(0, 1))
+  
+  # Add percentage labels
+  p11 <- p11 + geom_text(
+    aes(label = scales::percent(Percentage, accuracy = 0.1)),
+    position = position_stack(vjust = 0.5),
+    size = 2.5,
+    check_overlap = TRUE
+  )
+  
+  # Save the plot with location-specific filename
+  ggsave(
+    filename = here::here("Figures", paste0("EMP_SECTOR_", gsub(" ", "_", loc), "_2019_FINAL.png")), 
+    plot = p11, 
+    width = 14,
+    height = 10
+  )
+  
+  print(p11)
+}
+
+# Only Colombo, stacket chart
+# Colombo_data <- data_merged %>%
+#   filter(Location == "Colombo")
+# 
+# pie_data7 <- Colombo_data %>%
+#   pivot_longer(cols = all_of(columns_to_pivot_Emp_Pct)
+#                , names_to = "Employment_category"
+#                , values_to = "Percentage") %>% 
+#   mutate(Employment_category = factor(Employment_category, levels = columns_to_pivot_Emp_Pct))
+# 
+# # Function to generate colors
+# generate_colors <- function(n_categories, palette_name = "Zissou1") {
+#   base_colors <- wes_palette(palette_name, n = n_categories, type = "continuous")
+#   if (length(base_colors) < n_categories) {
+#     color_function <- colorRampPalette(base_colors)
+#     base_colors <- color_function(n_categories)
+#   }
+#   return(base_colors)
+# }
+
+# Updated plotting function
+create_structure_plot <- function(data, output_file) {
+  data$Year <- as.numeric(as.character(data$Year))
+  
+  data <- data %>%
+    group_by(Location, Year) %>%
+    arrange(desc(Employment_category)) %>%  # Reverse the order for stacking
+    mutate(CumulativePercentage = cumsum(Percentage),
+           YPosition = CumulativePercentage - Percentage/2) %>%
+    ungroup()
+  
+  n_categories <- length(unique(data$Employment_category))
+  colors <- generate_colors(n_categories)
+  
+  years <- unique(data$Year)
+  start_year <- min(years)
+  end_year <- max(years)
+  
+  label_data <- data %>%
+    filter(Year %in% c(start_year, end_year)) %>%
+    mutate(Label = scales::percent(Percentage, accuracy = 0.1, scale = 100),
+           x_position = if_else(Year == start_year, Year - 0.5, Year + 0.5))
+  
+  p <- ggplot(data, aes(x = Year, y = Percentage, fill = Employment_category)) +
+    geom_area(position = "stack") +
+    scale_fill_manual(values = colors) +
+    facet_wrap(~ Location, ncol = 1, scales = "free_y") +
+    labs(title = "Employment by Sector (percentage) in Colombo (2011-2019)",
+         x = "Year",
+         y = "Percentage") +
+    theme_minimal() +
+    scale_x_continuous(breaks = years) +
+    scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+    theme(legend.position = "bottom",
+          plot.title = element_text(size = 16, face = "bold"))
+  
+  p <- p + geom_text_repel(
+    data = label_data,
+    aes(x = x_position, y = YPosition, label = Label, color = Employment_category),
+    direction = "y",
+    segment.color = "grey50",
+    show.legend = FALSE,
+    size = 3,
+    force = 1,
+    max.overlaps = Inf
+  )
+  
+  p <- p + scale_color_manual(values = colors)
+  
+  ggsave(filename = output_file, width = 12, height = 8)
+  return(p)
+}
+
+# Create and save the plot
+p18 <- create_structure_plot(pie_data7, here::here("Figures", "EMP_WA_POP_COLOMBO_FINAL.png"))
+
+# Only Colombo, raw total
+data_merged <- data_merged %>%
+  mutate(
+    Public_Services_Emp = EMPO_Q,
+    Industry_Emp = EMPB_F,
+    Financial_Busines_Serices_Emp = EMPK_N,
+    Consumer_services_Emp = EMPGIR_U,
+    Agriculture_Emp = EMPA,
+    Transport_Information_Communic_Services_Emp = EMPHJ
+  )
+
+Colombo_data <- data_merged %>%
+  filter(Location == "Colombo")
+
+columns_to_pivot_Emp <- c("Public_Services_Emp", "Industry_Emp"
+                          , "Financial_Busines_Serices_Emp", "Consumer_services_Emp"
+                          , "Agriculture_Emp", "Transport_Information_Communic_Services_Emp")
+
+pie_data9 <- Colombo_data %>%
+  dplyr::select(Year, all_of(columns_to_pivot_Emp)) %>%
+  pivot_longer(cols = all_of(columns_to_pivot_Emp),
+               names_to = "Employment_category",
+               values_to = "Number_of_Employees") %>% 
+  mutate(Employment_category = factor(Employment_category, levels = columns_to_pivot_Emp))
+
+wes_palette <- wesanderson::wes_palette("Zissou1", n = length(unique(pie_data9$Employment_category)), type = "continuous")
+
+# Calculate positions for labels
+pie_data9 <- pie_data9 %>%
+  group_by(Year) %>%
+  arrange(desc(Employment_category)) %>%
+  mutate(cumulative_sum = cumsum(Number_of_Employees),
+         label_y = cumulative_sum - 0.5 * Number_of_Employees) %>%
+  ungroup()
+
+# Get start and end years
+start_year <- min(pie_data9$Year)
+end_year <- max(pie_data9$Year)
+
+# Prepare label data (now only with numeric values)
+label_data <- pie_data9 %>%
+  filter(Year %in% c(start_year, end_year)) %>%
+  mutate(label_x = ifelse(Year == start_year, Year - 0.5, Year + 0.5),
+         label_text = comma(Number_of_Employees))
+
+# Create the area chart with labels and legend
+p20 <- ggplot(pie_data9, aes(x = Year, y = Number_of_Employees, fill = Employment_category)) +
+  geom_area(position = "stack") +
+  geom_text_repel(
+    data = label_data,
+    aes(x = label_x, y = label_y, label = label_text),
+    direction = "y",
+    hjust = ifelse(label_data$Year == start_year, 1, 0),
+    vjust = 0.5,
+    size = 3,
+    segment.color = "grey50",
+    segment.size = 0.2,
+    box.padding = unit(0.35, "lines"),
+    force = 1
+  ) +
+  scale_fill_manual(values = wes_palette) +
+  labs(title = "Employment Composition in Colombo, 2011-2019",
+       x = "Year",
+       y = "Number of Employees (thousands)",
+       fill = "Employment Category") +
+  theme_minimal() +
+  theme(legend.position = "bottom",
+        legend.title = element_blank(),
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        plot.title = element_text(size = 16)) +
+  scale_x_continuous(breaks = unique(pie_data9$Year), 
+                     expand = expansion(mult = c(0.05, 0.05))) +
+  scale_y_continuous(labels = comma) +
+  guides(fill = guide_legend(nrow = 2, byrow = TRUE))
+
+ggsave(filename = here::here("Figures", "EMP_WA_POP_COLOMBO_ABSOLUTE_FINAL.png"), plot = p20, width = 8, height = 6)
 
 ### Total GDP-----
 create_population_plot(data_merged,
@@ -577,7 +791,7 @@ data_merged <- data_merged %>%
 
 create_population_plot(data_merged,
                        variable_name = "GDP_per_capita_PPP",
-                       title = "GDP per capita PPP by Category and City",
+                       title = "GDP per capita (PPP adjusted) by Category and City",
                        x_label = "Year",
                        y_label = "GDP per capita PPP (thousands)",
                        save_plot = TRUE,
@@ -718,12 +932,13 @@ data_merged <- data_merged %>%
 
 create_population_plot(data_merged,
                        variable_name = "Total_Employment_Pct",
-                       title = "Total Employment Percentage of Working-Age Population by Category and City (2011-2019)",
+                       title = "Employment as % of working age population (15-65) by Category and City (2011-2019)",
                        x_label = "Year",
-                       y_label = "Total Employment (percentage)",
+                       y_label = "Employment (percentage)",
                        save_plot = TRUE,
-                       filename = "EMP_WA_POP.png"
+                       filename = "EMP_WA_POP_FINAL.png"
 )
+
 
 # ggplot(data_merged, aes(x = Location, y = Total_Employment_Pct, fill = category_var)) +
 #   geom_bar(stat = "identity", position = "dodge") +
@@ -767,7 +982,7 @@ create_population_plot(data_merged,
                        variable_name = "Avg_Household_Income_PPP",
                        title = "Average Household Income PPP by Category and City (2011-2019)",
                        x_label = "Year",
-                       y_label = "High skills employment proportion of total workforce (PPP adjusted)",
+                       y_label = "Average Household Income PPP (Real USD)",
                        save_plot = TRUE,
                        filename = "AV_HH_DINC.png"
 )
@@ -800,10 +1015,10 @@ create_population_plot(data_merged,
 # ggsave(filename = here::here("Figures", "AV_HH_DINC.png"), plot = p3, width = 8, height = 6)
 
 ### Labor Force Participation Rate FALTA!!!!!-----
-data_merged <- data_merged %>%
-  mutate(Labor_Force_Participation_Rate = Labor_Force / Working_Age_Population * 100)
+# data_merged <- data_merged %>%
+#   mutate(Labor_Force_Participation_Rate = Labor_Force / Working_Age_Population * 100)
 
-# Calculate Employment in High-Tech Industries as a Pct of total employment
+### Calculate Employment in High-Tech Industries as a Pct of total employment-----
 data_filtered <-   data_merged %>% 
   dplyr::select(starts_with("EMP")) %>% 
   colnames()
@@ -820,7 +1035,7 @@ create_population_plot(data_merged,
                        variable_name = "High_Skills_Employment_Pct",
                        title = "Proportion of Industry and Finance Sector Enployment by Category and City (2011-2019)",
                        x_label = "Year",
-                       y_label = "Average Household Income (percentaje)",
+                       y_label = "High Skill Employment (percentaje)",
                        save_plot = TRUE,
                        filename = "HIGH_SKILLS_EMP.png"
 )
@@ -929,14 +1144,14 @@ data_merged <- data_merged %>%
          GVAK_NPPPC = as.numeric(GVAK_NPPPC),
          GVAB_FPPPC = as.numeric(GVAB_FPPPC),
          GVAO_QPPPC = as.numeric(GVAO_QPPPC),
-         GVAHJLCC = as.numeric(GVAHJLCC),
+         GVAHJPPPC = as.numeric(GVAHJPPPC),
          ) %>%
   mutate(Agriculture_GVA_Pct = GVAAPPPC / GVATOTPPPC
          , Consumer_services_GVA_Pct = GVAGIR_UPPPC / GVATOTPPPC
          , Financial_business_services_GVA_Pct = GVAK_NPPPC / GVATOTPPPC
          , Industry_GVA_Pct = GVAB_FPPPC / GVATOTPPPC          
          , Public_services_GVA_Pct =  GVAO_QPPPC / GVATOTPPPC 
-         , Transport_Information_Communic_Services_GVA_Pct =  GVAHJLCC / GVATOTPPPC
+         , Transport_Information_Communic_Services_GVA_Pct =  GVAHJPPPC / GVATOTPPPC
          ) # Decimal format
 
 columns_to_pivot <- c("Agriculture_GVA_Pct", "Consumer_services_GVA_Pct",
@@ -957,7 +1172,7 @@ pie_data <- data_merged %>%
 p5 <-  ggplot(pie_data, aes(x = Location, y = Percentage, fill = Sector)) +
   geom_bar(stat = "identity", position = "fill") +
   scale_fill_manual(values = c(wes_palette("Zissou1", n = length(unique(pie_data$Sector)), type = "continuous"), "#D3D3D3")) + # Adding an extra color
-  labs(title = "GVA Percentage by Sector (2011-2019)",
+  labs(title = "GVA Contribution by Sector (2011-2019)",
        x = "Location",
        y = "Percentage") +
   theme_minimal() +
@@ -969,6 +1184,7 @@ p5 <-  ggplot(pie_data, aes(x = Location, y = Percentage, fill = Sector)) +
 
 ggsave(filename = here::here("Figures", "GVA_SECTOR.png"), plot = p5, width = 8, height = 6)
 
+# Code for Location specific plots
 # Code for Location specific plots
 # Get unique locations
 locations <- unique(pie_data$Location)
@@ -982,22 +1198,20 @@ for (loc in locations) {
   start_year <- min(loc_data$Year)
   end_year <- max(loc_data$Year)
   
-  # Prepare start and end label data
-  start_labels <- loc_data %>%
-    filter(Year == start_year) %>%
-    group_by(Sector) %>%
-    mutate(cumulative = cumsum(Percentage) - 0.5 * Percentage)
-  
-  end_labels <- loc_data %>%
-    filter(Year == end_year) %>%
-    group_by(Sector) %>%
-    mutate(cumulative = cumsum(Percentage) - 0.5 * Percentage)
+  # Prepare label data
+  label_data <- loc_data %>%
+    group_by(Year) %>%
+    mutate(
+      pos = cumsum(Percentage) - 0.5 * Percentage,
+      perc = scales::percent(Percentage, accuracy = 0.1)
+    ) %>%
+    ungroup()
   
   # Create the plot
   p9 <- ggplot(loc_data, aes(x = Year, y = Percentage, fill = Sector)) +
     geom_area(position = "fill") +
     scale_fill_manual(values = c(wes_palette("Zissou1", n = length(unique(pie_data$Sector)), type = "continuous"), "#D3D3D3")) +
-    labs(title = paste("GVA Percentage by Sector in", loc, "(2011-2019)"),
+    labs(title = paste("GVA Contribution by Sector in", loc, "(2011-2019)"),
          x = "Year",
          y = "Percentage",
          fill = "Sector") +
@@ -1010,69 +1224,113 @@ for (loc in locations) {
     ) +
     scale_y_continuous(labels = scales::percent_format()) +
     scale_x_continuous(breaks = unique(loc_data$Year)) +
-    geom_text_repel(data = start_labels,
-                    aes(x = start_year, y = cumulative, label = paste(Sector, scales::percent(Percentage, accuracy = 0.1))),
-                    direction = "y",
-                    nudge_x = -0.5,
-                    segment.color = "grey50",
-                    size = 3) +
-    geom_text_repel(data = end_labels,
-                    aes(x = end_year, y = cumulative, label = paste(Sector, scales::percent(Percentage, accuracy = 0.1))),
-                    direction = "y",
-                    nudge_x = 0.5,
-                    segment.color = "grey50",
-                    size = 3)
+    geom_text(data = label_data %>% filter(Year == start_year | Year == end_year),
+              aes(x = Year, y = pos, label = perc, group = Sector,
+                  hjust = ifelse(Year == start_year, 1, 0)),
+              size = 3) +
+    geom_line(data = label_data %>% filter(Year == start_year | Year == end_year),
+              aes(x = Year, y = pos, group = Sector),
+              linetype = "dotted", color = "gray50")
   
   # Save the plot with location-specific filename
   ggsave(
     filename = here::here("Figures", paste0("GVA_SECTOR_", gsub(" ", "_", loc), ".png")), 
     plot = p9, 
-    width = 12,  # Increased width to accommodate labels
+    width = 12,
     height = 8
   )
   
-  # Display the plot
-  print(p9)
 }
+
+# Only 2019
+# Filter data for 2019
+pie_data <- data_merged %>%
+  pivot_longer(cols = all_of(columns_to_pivot), names_to = "Sector", values_to = "Percentage") %>% 
+  filter(Year == 2019)
+
+# Ensure percentages sum to 100 for each location
+pie_data <- pie_data %>%
+  group_by(Location) %>%
+  mutate(Total = sum(Percentage)) %>%
+  mutate(Percentage = Percentage / Total * 100) %>%
+  ungroup()
+
+# Create a single plot with all locations
+p9 <- ggplot(pie_data, aes(x = Location, y = Percentage, fill = Sector)) +
+  geom_bar(stat = "identity", position = "stack") +
+  scale_fill_manual(values = c(wes_palette("Zissou1", n = length(unique(pie_data$Sector)), type = "continuous"), "#D3D3D3")) +
+  scale_y_continuous(labels = scales::percent_format(scale = 1), 
+                     limits = c(0, 100),
+                     breaks = seq(0, 100, 20)) +
+  labs(title = "GVA Contribution by Sector Across Locations (2019)",
+       x = NULL,
+       y = "Percentage",
+       fill = "Sector") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16, face = "bold"),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+    axis.text.y = element_text(size = 10),
+    legend.position = "right",
+    legend.text = element_text(size = 8),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank()
+  )
+
+# Add percentage labels
+p9 <- p9 + geom_text(aes(label = ifelse(Percentage >= 5, paste0(round(Percentage, 1), "%"), "")), 
+                     position = position_stack(vjust = 0.5), 
+                     size = 3, color = "white")
+
+# Save the plot
+ggsave(
+  filename = here::here("Figures", "GVA_SECTOR_ALL_LOCATIONS_2019_FIBNA.png"), 
+  plot = p9, 
+  width = 15,
+  height = 10,
+  dpi = 300
+)
+
 
 ### Productivity per worker for each of the sectors (in real usd) ----
 # Define productivity as GVA per worker
 
 data_merged <- data_merged %>%
-  mutate(Agriculture_Productivity = GVAAPPPC / EMPA
-                     , Consumer_services_Productivity = GVAGIR_UPPPC / EMPGIR_U
-                     , Financial_business_services_Productivity = GVAK_NPPPC / EMPK_N
-                     , Industry_Productivity = GVAK_NPPPC / EMPB_F          
-                     , Public_services_Productivity = GVAB_FPPPC / EMPO_Q
-                     , Transport_Information_Communic_Services_Productivity = GVAHJLCC / EMPHJ
-                     ) # Decimal format
+  mutate(Agriculture_Productivity = GVAAPPPC / EMPA,
+         Consumer_services_Productivity = GVAGIR_UPPPC / EMPGIR_U,
+         Financial_business_services_Productivity = GVAK_NPPPC / EMPK_N,
+         Industry_Productivity = GVAK_NPPPC / EMPB_F,          
+         Public_services_Productivity = GVAB_FPPPC / EMPO_Q,
+         Transport_Information_Communic_Services_Productivity = GVAHJPPPC / EMPHJ)
 
 columns_to_pivot <- c("Agriculture_Productivity", "Consumer_services_Productivity",
                       "Financial_business_services_Productivity", "Industry_Productivity",
                       "Public_services_Productivity", "Transport_Information_Communic_Services_Productivity")
 
-
 pie_data5 <- data_merged %>%
-  pivot_longer(cols = all_of(columns_to_pivot), names_to = "Sector_productivty"
-               , values_to = "Percentage") %>% 
+  pivot_longer(cols = all_of(columns_to_pivot), names_to = "Sector_productivity", values_to = "Productivity") %>% 
   filter(Year == 2019)
 
-p18 <-  ggplot(pie_data5, aes(x = Location, y = Percentage, fill = Sector_productivty)) +
-  geom_bar(stat = "identity", position = "fill") +
-  scale_fill_manual(values = c(wes_palette("Zissou1"
-                                           , n = length(unique(pie_data$Sector))
-                                           , type = "continuous"), "#D3D3D3")) + # Adding an extra color
+p18 <- ggplot(pie_data5, aes(x = Sector_productivity, y = Productivity, fill = Sector_productivity)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_manual(values = wes_palette("Zissou1", n = length(unique(pie_data5$Sector_productivity)), type = "continuous")) +
   labs(title = "Sector Productivity by City, 2019",
-       x = "Location",
-       y = "Percentage") +
+       x = "Sector",
+       y = "Productivity") +
   theme_minimal() +
-  facet_wrap(~ Year, scales = "free", labeller = label_both) +
-  theme(strip.text = element_text(size = 8)) +
-  scale_y_continuous(labels = scales::percent_format()) +
-  geom_text(aes(label = scales::percent(Percentage, accuracy = 0.1)),
-            position = position_fill(vjust = 0.5), size = 2)
+  facet_wrap(~ Location, scales = "free_y") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        strip.text = element_text(size = 8),
+        legend.position = "none") +
+  scale_y_continuous(labels = scales::comma) +
+  geom_text(aes(label = scales::comma(Productivity, accuracy = 0.01)),
+            position = position_dodge(width = 0.9), 
+            vjust = -0.5, 
+            size = 2.5)
 
-ggsave(filename = here::here("Figures", "SECTOR_PRODUCT_2019.png"), plot = p18, width = 8, height = 6)
+ggsave(filename = here::here("Figures", "SECTOR_PRODUCTIVITY_2019_FINAL.png"), plot = p18, width = 12, height = 8)
+
+
 
 
 # Output database -----
