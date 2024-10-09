@@ -312,8 +312,12 @@ numeric_columns <- c("PEDYHHPUSN", "FCTOTPPPC", "FCTOTUSN", "FCTOTUSC", "EMPA", 
                      "EMPO_Q", "EMPTOTT", "EMPHJ", "GDPTOTUSC", "GDPTOTPPPN", "GVAAUSN", "GVAGIR_UUSN", "GVAK_NUSN",
                      "GVAB_FUSN", "GVAO_QUSN", "GVATOTUSN", "GVAHJUSN")
 
-locations <- c("Colombo", "Mumbai", "Chennai", "Kochi", "Chittagong", "Karachi", "Ho Chi Minh City", "Surabaya",
-               "Singapore", "Bangkok", "Kuala Lumpur", "Hangzhou", "Quingdao", "Tianjin", "Xiamen")
+# locations <- c("Colombo", "Mumbai", "Chennai", "Kochi", "Chittagong", "Karachi", "Ho Chi Minh City", "Surabaya",
+#                "Singapore", "Bangkok", "Kuala Lumpur", "Hangzhou", "Quingdao", "Tianjin", "Xiamen")
+
+locations <- c("Colombo", "Mumbai", "Kochi", "Chittagong", "Ho Chi Minh City", "Surabaya",
+               "Singapore", "Bangkok", "Kuala Lumpur", "Hangzhou", "Quingdao")
+
 
 data_merged <- data_merged %>% 
   filter(Location != "") %>% 
@@ -321,10 +325,11 @@ data_merged <- data_merged %>%
   mutate(across(all_of(numeric_columns), as.numeric)) %>% 
   mutate(category_var = case_when(
     Location %in% c("Colombo") ~ 1,
-    Location %in% c("Mumbai", "Chennai", "Kochi", "Chittagong", "Karachi", "Ho Chi Minh City", "Surabaya") ~ 2,
-    Location %in% c("Singapore", "Bangkok", "Kuala Lumpur", "Hangzhou", "Quingdao", "Tianjin", "Xiamen") ~ 3
+    Location %in% c("Mumbai", "Kochi", "Chittagong", "Ho Chi Minh City", "Surabaya") ~ 2,
+    Location %in% c("Singapore", "Bangkok", "Kuala Lumpur", "Hangzhou", "Quingdao") ~ 3
   )) %>% 
-  filter(Location %in% locations| Location == "")
+  filter(Location %in% locations| Location == "") %>% 
+  filter(Locationcode != "SGP") #2 sets of Singapore data!!! Kept SGP2
 
 # Table of category_var
 table(data_merged$category_var)
