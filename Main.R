@@ -70,223 +70,79 @@ for (var in names(labels_vector)) {
 
 data <- data[-c(1:7), ]
 
-# Load shapefile
-shape_file <- st_read(here("data", "OE_FUA_SHAPEFILE", "OE_FUA_SHAPEFILE.shp")) %>% 
-  filter(OE_COUNTRY=="LKA")
-
-View(shape_file)
-
-require(ggspatial)
-
-ggplot(data = shape_file) +
-  annotation_map_tile(type = "osm", zoom = 10) +  # Add OpenStreetMap tiles
-  geom_sf(fill = NA, color = "blue", size = 3.5) +  # Make the shape file transparent  theme_minimal()
-  labs(title = "eFUA Colombo",
-       subtitle = "Colombo, Sri Lanka",
-       caption = "Source: Oxford Economics 2022") +
-  annotation_north_arrow(location = "tr", which_north = "true", 
-                         style = north_arrow_fancy_orienteering)  +
-  annotation_scale(location = "bl", width_hint = 0.5)
-
-ggsave(here("Figures","colombo_FUA_OE.png"), width = 6, height = 4, dpi = 300)
-
-
-# Load raster files
-fua <- raster(here("Data", "Raster","ghs_smod_fua.tif"))
-oe <- raster(here("Data", "Raster", "ghs_smod_oe.tif"))
-ucdb <- raster(here("Data", "Raster","ghs_smod_ucdb.tif"))
-
-crs(fua)  # +proj=moll
-# values <- getValues(fua)
-
-minValue(fua)
-maxValue(fua)
-cellStats(fua, stat = 'mean')
-#plot(fua, main = "GHS SMOD FUA")
-
-# Reproject raster to WGS 84
-# raster_files <- list(fua, oe, ucdb)
+# #### Request ----
+# require(readr)
 # 
-# reprojected_rasters <- lapply(raster_files, function(raster) {
-#   projectRaster(raster, crs = st_crs(4326)$proj4string)
-# })
-# names(reprojected_rasters) <- c("fua", "oe", "ucdb")
-
-fua <- projectRaster(ucdb, crs = st_crs(4326)$proj4string)
-# Warning message:
-#   # [project] 294 failed transformations 
-crs(ucdb)  # +proj=wgs84
-
-# saveRDS(ucdb, here("Data", "Raster", "ucdb.rds"))
-
-
-# Get bounding box, crop and mask raster
-colombo_bbox <- st_bbox(c(xmin = 79.84, ymin = 6.80, xmax = 79.92, ymax = 6.98), crs = st_crs(4326))
-
-colombo_extent <- as(extent(colombo_bbox), "SpatialPolygons")
-crs(colombo_extent) <- crs(fua)  # Ensure the CRS matches
-
-fua_colombo <- crop(fua, colombo_extent) %>% mask(colombo_extent)
-oe_colombo <- crop(oe, colombo_extent) %>% mask(colombo_extent)
-ucdb_colombo <- crop(ucdb, colombo_extent) %>% mask(colombo_extent)
-
-# Function to convert raster to dataframe
-raster_to_df <- function(raster, name) {
-  df <- as.data.frame(raster, xy = TRUE)
-  names(df)[3] <- "value"
-  df$dataset <- name
-  return(df)
-}
-
-# Convert rasters to dataframes
-fua_df <- raster_to_df(fua_colombo, "FUA")
-oe_df <- raster_to_df(oe_colombo, "OE")
-ucdb_df <- raster_to_df(ucdb_colombo, "UCDB")
-
-# Combine dataframes
-all_data <- bind_rows(fua_df, oe_df, ucdb_df)
-
-# Create the plot
-(ggplot() +
-  annotation_map_tile(type = "osm", zoom = 12) +  # Add OpenStreetMap tiles
-  geom_raster(data = all_data, aes(x = x, y = y, fill = value), alpha = 0.7) +
-  facet_wrap(~ dataset, ncol = 3) +
-  scale_fill_viridis_c(option = "plasma") +
-  coord_sf(crs = st_crs(4326)) +
-  theme_minimal() +
-  labs(title = "Colombo Urban Area Analysis",
-       fill = "Value") +
-  annotation_scale(location = "bl", width_hint = 0.5) +
-  annotation_north_arrow(location = "tr", which_north = "true",
-                         pad_x = unit(0.1, "in"), pad_y = unit(0.1, "in"),
-                         style = north_arrow_fancy_orienteering) +
-  theme(axis.title = element_blank(),
-        legend.position = "bottom"))
-
-# Save the plot
-ggsave(here("Figures", "colombo_urban_analysis_with_osm.png"), width = 15, height = 5, dpi = 300)
-
-# Filter locations and years
-# country <- data %>%
-#            filter("Country" %in% "Sri Lanka")
-
-colnames(data)
-require(labelled)
-
-locations <- c("Colombo", "Sri Lanka", "Phnom Penh", "Cambodia", "Ho Chi Minh City", "Vietnam - Total",
-               "Surabaya", "Indonesia", "Chittagong", "Port Louis", "Mauritius", "Auckland", "New Zealand - Total")
-
-cities <- c("Colombo", "Phnom Penh", "Ho Chi Minh City", "Surabaya", "Chittagong", "Port Louis")
-mena <- c("Cairo", "Riyadh", "Dubai", "Tehran", "Istanbul", "Baghdad", "Casablanca", "Doha")
-
-
-data_mena <- data %>% 
-             filter(Location %in% mena | Location == "")
-
-
-# Select columns
-# columns_to_keep <- c("Year", "Location", "PEDYHHPUSN", "FCTOTPPPC", "FCTOTUSN", "FCTOTUSC", "EMPA", "EMPGIR_U",
-#                      "EMPK_N", "EMPB_F", "EMPO_Q", "EMPTOTT", "EMPHJ", "GDPTOTUSC", "GDPTOTPPPN", "GVAAUSN",
-#                      "GVAGIR_UUSN", "GVAK_NUSN", "GVAB_FUSN", "GVAO_QUSN", "GVATOTUSN", "GVAHJUSN", "POPTOTT")
-# data <- data %>% dplyr::select(all_of(columns_to_keep))
-
+# show_in_excel <- function(.data){
 # 
-# data <- data %>% 
-#   filter(Location != "") %>% 
-#   mutate(across(everything(), ~na_if(., "NA"))) %>% 
-#   mutate(across(all_of(numeric_columns), as.numeric)) %>% 
-#   mutate(category_var = case_when(
-#     Location == "Colombo" ~ 1,
-#     Location %in% c("Phnom Penh", "Ho Chi Minh City", "Surabaya", "Chittagong") ~ 2,
-#     Location %in% c("Port Louis", "Auckland", "Lisbon", "Singapore") ~ 3
-#   ))
-
-## Visualisation -------
-# Create bar plot
-# (ggplot(data, aes(x = reorder(Location, PEDYHHPUSN), y = PEDYHHPUSN, fill = category_var)) +
-#   geom_bar(stat = "identity") +
-#   facet_grid(~ category_group, scales = "free_x", space = "free_x") +
-#   scale_fill_manual(values = c("green", "blue", "red")) +
-#   labs(title = "Average Household Personal Disposable Income",
-#        y = "$US, 2015, Nominal",
-#        x = "Location") +
-#   theme_minimal() +
-#   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-#   geom_text(aes(label = round(PEDYHHPUSN, 0)), vjust = -0.5))
-
-#### Request ----
-require(readr)
-
-show_in_excel <- function(.data){
-
-tmp <- paste0(tempfile(), ".csv")
-
-write_xlsx(.data, tmp)
-
-#fs:: file_show(path = tmp)
-browseURL(tmp) 
-}
-
-
-data %>% filter(Country=="Sri Lanka") %>% View(.)
-
-colnames(data) <- labels_vector[colnames(data)]
-
-data_colombo <- data %>% filter(Location=="Colombo") %>% 
-  dplyr::select(where(~ !all(is.na(.)))) 
-
-show_in_excel(data_colombo)
-
-labels_vector <- setNames(labels$Label, labels$Variable)
-data_colombo_labeled <- setNames(data_colombo, labels_vector[names(data_colombo)])
-
-write_xlsx(data_colombo_labeled, here("Data", "data_colombo.xlsx"), col_names = TRUE)
-
-
-
-data %>% filter(Location=="Colombo") %>% 
-  dplyr::select(where(~ !all(is.na(.)))) %>%
-  colnames(.)
-
-
-qs_rankings <- read_csv(here("Data", "qs_rankings_CCKSB.csv"))
-colnames(qs_rankings)[colnames(qs_rankings) == "...1"] <- "id"
-
-data_colombo2 <- qs_rankings %>% filter(location=="Sri Lanka") %>% 
-  dplyr::select(where(~ !all(is.na(.)))) 
-
-show_in_excel(data_colombo2)
-
-
-### wb_doingbusiness----
-wb_doingbusiness <- read_csv(here("Data", "WB_doingbusiness_CCKSB.csv")) %>% 
-  rename(Location = `Location 1\r\n(city, port)`)
-
-data_colombo3 <- wb_doingbusiness %>% filter(Economy=="Sri Lanka") %>% 
-  dplyr::select(where(~ !all(is.na(.)))) 
-
-show_in_excel(data_colombo3)
-
-
-cities <- c("Colombo", "Mumbai", "Chennai", "Kochi", "Chittagong", "Karachi", "Ho Chi Minh City", "Surabaya",
-               "Singapore", "Bangkok", "Kuala Lumpur", "Hangzhou", "Quingdao", "Tianjin", "Xiamen")
-
-data_wbdb <- wb_doingbusiness %>% filter(Location %in% cities) 
-
-
-
-### UCDB----
-ucdb_full_vars <- read_csv(here("Data","UCDB_CCKSB_full_vars.csv")) %>% 
-  rename(Location = loc_latin)
-
-data_colombo4 <- ucdb_full_vars %>% filter(CTR_MN_NM=="Sri Lanka") %>% 
-  dplyr::select(where(~ !all(is.na(.)))) %>% 
-  filter(loc_latin != "Sammanturai") # Row contains all missing data
-
-
-show_in_excel(data_colombo4)
-
-data_ucdb <- ucdb_full_vars %>% filter(Location %in% cities) 
+# tmp <- paste0(tempfile(), ".csv")
+# 
+# write_xlsx(.data, tmp)
+# 
+# #fs:: file_show(path = tmp)
+# browseURL(tmp) 
+# }
+# 
+# 
+# data %>% filter(Country=="Sri Lanka") %>% View(.)
+# 
+# colnames(data) <- labels_vector[colnames(data)]
+# 
+# data_colombo <- data %>% filter(Location=="Colombo") %>% 
+#   dplyr::select(where(~ !all(is.na(.)))) 
+# 
+# show_in_excel(data_colombo)
+# 
+# labels_vector <- setNames(labels$Label, labels$Variable)
+# data_colombo_labeled <- setNames(data_colombo, labels_vector[names(data_colombo)])
+# 
+# write_xlsx(data_colombo_labeled, here("Data", "data_colombo.xlsx"), col_names = TRUE)
+# 
+# 
+# 
+# data %>% filter(Location=="Colombo") %>% 
+#   dplyr::select(where(~ !all(is.na(.)))) %>%
+#   colnames(.)
+# 
+# 
+# qs_rankings <- read_csv(here("Data", "qs_rankings_CCKSB.csv"))
+# colnames(qs_rankings)[colnames(qs_rankings) == "...1"] <- "id"
+# 
+# data_colombo2 <- qs_rankings %>% filter(location=="Sri Lanka") %>% 
+#   dplyr::select(where(~ !all(is.na(.)))) 
+# 
+# show_in_excel(data_colombo2)
+# 
+# 
+# ### wb_doingbusiness----
+# wb_doingbusiness <- read_csv(here("Data", "WB_doingbusiness_CCKSB.csv")) %>% 
+#   rename(Location = `Location 1\r\n(city, port)`)
+# 
+# data_colombo3 <- wb_doingbusiness %>% filter(Economy=="Sri Lanka") %>% 
+#   dplyr::select(where(~ !all(is.na(.)))) 
+# 
+# show_in_excel(data_colombo3)
+# 
+# 
+# cities <- c("Colombo", "Mumbai", "Chennai", "Kochi", "Chittagong", "Karachi", "Ho Chi Minh City", "Surabaya",
+#                "Singapore", "Bangkok", "Kuala Lumpur", "Hangzhou", "Quingdao", "Tianjin", "Xiamen")
+# 
+# data_wbdb <- wb_doingbusiness %>% filter(Location %in% cities) 
+# 
+# 
+# 
+# ### UCDB----
+# ucdb_full_vars <- read_csv(here("Data","UCDB_CCKSB_full_vars.csv")) %>% 
+#   rename(Location = loc_latin)
+# 
+# data_colombo4 <- ucdb_full_vars %>% filter(CTR_MN_NM=="Sri Lanka") %>% 
+#   dplyr::select(where(~ !all(is.na(.)))) %>% 
+#   filter(loc_latin != "Sammanturai") # Row contains all missing data
+# 
+# 
+# show_in_excel(data_colombo4)
+# 
+# data_ucdb <- ucdb_full_vars %>% filter(Location %in% cities) 
 
 # Statistics -----
 # labels_vector <- setNames(labels$Label, labels$Variable)
@@ -354,6 +210,11 @@ data_merged <- data_merged %>% group_by(category_var) %>% mutate(category_group 
 
 # Convert Year to numeric
 data_merged$Year <- as.numeric(as.character(data_merged$Year))
+
+#Load functions
+functions <- c("Structure_plot_function.R", "plot_function.R")
+invisible(lapply(here("Functions", functions)
+                 , function(f) suppressMessages(source(f, echo = FALSE))))
 
 ### Total Population-----
 require(scales)
@@ -485,7 +346,7 @@ data_merged <- data_merged %>%
 
 columns_to_pivot_Emp_Pct <- c("Public_Services_Emp_Pct",
                       "Industry_Emp_Pct",
-                      "Fiancial_Busines_Serices_Emp_Pct",
+                      "Financial_Busines_Serices_Emp_Pct",
                       "Consumer_services_Emp_Pct",
                       "Agriculture_Emp_Pct",
                       "Transport_Information_Communic_Services_Emp_Pct")
@@ -613,24 +474,24 @@ for (loc in locations) {
 }
 
 # Only Colombo, stacket chart
-# Colombo_data <- data_merged %>%
-#   filter(Location == "Colombo")
-# 
-# pie_data7 <- Colombo_data %>%
-#   pivot_longer(cols = all_of(columns_to_pivot_Emp_Pct)
-#                , names_to = "Employment_category"
-#                , values_to = "Percentage") %>% 
-#   mutate(Employment_category = factor(Employment_category, levels = columns_to_pivot_Emp_Pct))
-# 
-# # Function to generate colors
-# generate_colors <- function(n_categories, palette_name = "Zissou1") {
-#   base_colors <- wes_palette(palette_name, n = n_categories, type = "continuous")
-#   if (length(base_colors) < n_categories) {
-#     color_function <- colorRampPalette(base_colors)
-#     base_colors <- color_function(n_categories)
-#   }
-#   return(base_colors)
-# }
+Colombo_data <- data_merged %>%
+  filter(Location == "Colombo")
+
+pie_data7 <- Colombo_data %>%
+  pivot_longer(cols = all_of(columns_to_pivot_Emp_Pct)
+               , names_to = "Employment_category"
+               , values_to = "Percentage") %>%
+  mutate(Employment_category = factor(Employment_category, levels = columns_to_pivot_Emp_Pct))
+
+# Function to generate colors
+generate_colors <- function(n_categories, palette_name = "Zissou1") {
+  base_colors <- wes_palette(palette_name, n = n_categories, type = "continuous")
+  if (length(base_colors) < n_categories) {
+    color_function <- colorRampPalette(base_colors)
+    base_colors <- color_function(n_categories)
+  }
+  return(base_colors)
+}
 
 # Updated plotting function
 create_structure_plot <- function(data, output_file) {
@@ -686,7 +547,7 @@ create_structure_plot <- function(data, output_file) {
 }
 
 # Create and save the plot
-p18 <- create_structure_plot(pie_data7, here::here("Figures", "EMP_WA_POP_COLOMBO_FINAL.png"))
+p18 <- create_structure_plot(pie_data7, here::here("Figures", "EMP_POP_COLOMBO_FINAL.png"))
 
 # Only Colombo, raw total
 data_merged <- data_merged %>%
@@ -1030,16 +891,88 @@ map(c("EMPA", "EMPGIR_U", "EMPK_N", "EMPB_F", "EMPO_Q", "EMPTOTT", "EMPHJ"),
     ~ attr(data_merged[[.x]], "label"))
 
 data_merged <- data_merged %>%
-  mutate(High_Skills_Employment_Pct = (EMPB_F + EMPK_N) / EMPTOTT * 100) # Industry + finance
+  mutate(High_Skills_Employment_Pct = (EMPB_F + EMPK_N + EMPO_Q + EMPGIR_U) / EMPTOTT * 100) # Industry + finance + public serv + consumer serv
 
 create_population_plot(data_merged,
                        variable_name = "High_Skills_Employment_Pct",
-                       title = "Proportion of Industry and Finance Sector Enployment by Category and City (2011-2019)",
+                       title = "Proportion of Industry, Finance & Business, Public ad Consumer Services Sector Enployment by Category and City (2011-2019)",
                        x_label = "Year",
                        y_label = "High Skill Employment (percentaje)",
                        save_plot = TRUE,
-                       filename = "HIGH_SKILLS_EMP.png"
+                       filename = "HIGH_SKILLS_EMP_FINAL.png"
 )
+
+### Private employment, 2019----
+
+pie_data13 <- data_merged %>%
+  filter(Year == 2019) %>%
+  group_by(Location) %>%
+  summarise(Private_Emp = sum(Private_Emp, na.rm = TRUE),
+            category_var = first(category_var)) %>%  # Assume category_var is consistent per Location
+  ungroup() %>%
+  mutate(Total_Private_Employment = sum(Private_Emp, na.rm = TRUE),
+         Percentage = Private_Emp / Total_Private_Employment * 100) %>%
+  arrange(desc(Percentage))
+
+# Create a single vertical stacked bar plot
+p24 <- ggplot(pie_data13, aes(x = "", y = Percentage, fill = Location)) +
+  geom_bar(stat = "identity", width = 0.6) +
+  scale_fill_manual(values = wes_palette("Zissou1", n = nrow(pie_data13)
+                                         , type = "continuous")) +
+  scale_y_continuous(labels = scales::percent_format(scale = 1),
+                     limits = c(0, 100),
+                     breaks = seq(0, 100, 10)) +
+  labs(title = "Proportion of Industry, Finance & Business, Public ad Consumer Services Sector, 2019",
+       x = NULL,
+       y = "Percentage of share of High Skill Employment",
+       fill = "City") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16, face = "bold"),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank(),
+    legend.position = "right",
+    legend.direction = "vertical",
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 10),
+    plot.margin = margin(10, 10, 10, 10)
+  ) +
+  # Modify only the legend to group by category_var
+  guides(fill = guide_legend(byrow = TRUE,
+                             title = "City",
+                             order = 1,
+                             override.aes = list(size = 3))) +
+  # Add a second legend for categories
+  scale_color_manual(values = setNames(rep("black", nrow(pie_data13))
+                                       , pie_data13$Location),
+                     breaks = pie_data13$Location,
+                     labels = pie_data13$category_var,
+                     name = "Category") +
+  guides(color = guide_legend(override.aes = list(fill = NA, color = NA),
+                              order = 2))
+
+# Add percentage labels using ggrepel
+p24 <- p24 +
+  geom_text_repel(
+    aes(label = paste0(Location, "\n", round(Percentage, 1), "%")),
+    position = position_stack(vjust = 0.5),
+    size = 3,
+    direction = "y",
+    force = 1,
+    segment.color = NA
+  )
+
+# Save the plot
+ggsave(
+  filename = here::here("Figures", "HIGH_SKILLS_EMP_2019_FINAL.png"),
+  plot = p24,
+  width = 12,  # Increased width to accommodate the expanded legend
+  height = 12,
+  dpi = 300
+)
+
 
 ### Consumer spending, PPP, real-----
 map(c("FC03PPPC", "FC08PPPC", "FC01PPPC", "FC06PPPC", "FC04PPPC", "FC124PPPC"),
@@ -1285,7 +1218,7 @@ p9 <- p9 + geom_text(aes(label = ifelse(Percentage >= 5, paste0(round(Percentage
 
 # Save the plot
 ggsave(
-  filename = here::here("Figures", "GVA_SECTOR_ALL_LOCATIONS_2019_FIBNA.png"), 
+  filename = here::here("Figures", "GVA_SECTOR_ALL_LOCATIONS_2019_FINAL.png"), 
   plot = p9, 
   width = 15,
   height = 10,
@@ -1331,6 +1264,349 @@ p18 <- ggplot(pie_data5, aes(x = Sector_productivity, y = Productivity, fill = S
 
 ggsave(filename = here::here("Figures", "SECTOR_PRODUCTIVITY_2019_FINAL.png"), plot = p18, width = 12, height = 8)
 
+## By sector all years
+pie_data6 <- data_merged %>%
+  pivot_longer(cols = all_of(columns_to_pivot)
+               , names_to = "Sector"
+               , values_to = "Productivity") %>% 
+  mutate(Sector = gsub("_Productivity", "", Sector))  # Clean up sector names
+
+create_sector_plot <- function(data, sector) {
+  # Filter data for the specific sector
+  sector_data <- data %>% filter(Sector == sector)
+  
+  # Identify start and end years
+  start_year <- min(sector_data$Year)
+  end_year <- max(sector_data$Year)
+  
+  # Prepare label data
+  label_data <- sector_data %>%
+    group_by(Location) %>%
+    summarize(
+      Start_Year = first(Year),
+      End_Year = last(Year),
+      Start_Productivity = first(Productivity),
+      End_Productivity = last(Productivity)
+    )
+  
+  # Get color palette
+  color_palette <- wes_palette("Zissou1", n = length(unique(sector_data$Location)), type = "continuous")
+  
+  p <- ggplot(sector_data, aes(x = Year, y = Productivity, color = Location, group = Location)) +
+    geom_line() +
+    geom_point() +
+    scale_color_manual(values = color_palette) +
+    geom_text_repel(
+      data = label_data,
+      aes(x = Start_Year, y = Start_Productivity, label = paste(Location, round(Start_Productivity, 2))),
+      nudge_x = -0.5,
+      direction = "y",
+      hjust = 1,
+      segment.color = "grey50"
+    ) +
+    geom_text_repel(
+      data = label_data,
+      aes(x = End_Year, y = End_Productivity, label = paste(Location, round(End_Productivity, 2))),
+      nudge_x = 0.5,
+      direction = "y",
+      hjust = 0,
+      segment.color = "grey50"
+    ) +
+    labs(title = paste(sector, "Productivity by City, 2011-2019"),
+         x = "Year",
+         y = "Productivity (GVA/Employment)") +
+    theme_minimal() +
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1),
+      legend.position = "none"  # Remove legend as we now have labels
+    ) +
+    scale_y_continuous(labels = scales::comma) +
+    scale_x_continuous(breaks = start_year:end_year)
+  
+  # Save the plot
+  filename <- paste0(gsub(" ", "_", sector), "_FINAL.png")
+  ggsave(filename = here::here("Figures", filename), 
+         plot = p, 
+         width = 15, 
+         height = 10)
+}
+
+# Create and save a plot for each sector
+unique_sectors <- unique(pie_data6$Sector)
+lapply(unique_sectors, function(sector) create_sector_plot(pie_data6, sector))
+
+### GVA per capita and GDP_per_capita----
+
+data_merged <- data_merged %>%
+  mutate(GVA_per_capita = GVATOTPPPC / Total_population )
+
+create_population_plot(data_merged,
+                       variable_name = "GVA_per_capita",
+                       title = "GVA per capita (PPP) by Category and City (2011-2019)",
+                       x_label = "Year",
+                       y_label = "USD PPP (thousands)",
+                       save_plot = TRUE,
+                       filename = "GVA_PC_FINAL.png"
+)
+
+create_population_plot(data_merged,
+                       variable_name = "GDP_per_capita_PPP",
+                       title = "GDP per capita (PPP) by Category and City (2011-2019)",
+                       x_label = "Year",
+                       y_label = "USD PPP (thousands)",
+                       save_plot = TRUE,
+                       filename = "GDP_PC_FINAL.png"
+)
+
+### Stacked GDP for all cities, 2019
+
+# create_stacked_bar_plot (data = data_merged
+#                          , year = 2019
+#                          , variable = "GDPTOTUSC"
+#                          # , category_var
+#                          , title = "GDP Distribution Across Cities (Real USD), 2019"
+#                          , y_label = "Percentage of share of Total GDP"
+#                          , output_filename = "CITY_GDP_2019_FINAL.png"
+#                          )
+
+# # Filter data for 2019 and calculate percentages
+pie_data10 <- data_merged %>%
+  filter(Year == 2019) %>%
+  group_by(Location) %>%
+  summarise(GDPTOTUSC = sum(GDPTOTUSC, na.rm = TRUE),
+            category_var = first(category_var)) %>%  # Assume category_var is consistent per Location
+  ungroup() %>%
+  mutate(Total_GDP = sum(GDPTOTUSC, na.rm = TRUE),
+         Percentage = GDPTOTUSC / Total_GDP * 100) %>%
+  arrange(desc(Percentage))
+
+# Create a single vertical stacked bar plot
+p21 <- ggplot(pie_data10, aes(x = "", y = Percentage, fill = Location)) +
+  geom_bar(stat = "identity", width = 0.6) +
+  scale_fill_manual(values = wes_palette("Zissou1", n = nrow(pie_data10), type = "continuous")) +
+  scale_y_continuous(labels = scales::percent_format(scale = 1),
+                     limits = c(0, 100),
+                     breaks = seq(0, 100, 10)) +
+  labs(title = "GDP Distribution Across Cities (Real USD), 2019",
+       x = NULL,
+       y = "Percentage of share of Total GDP",
+       fill = "City") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16, face = "bold"),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank(),
+    legend.position = "right",
+    legend.direction = "vertical",
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 10),
+    plot.margin = margin(10, 10, 10, 10)
+  ) +
+  # Modify only the legend to group by category_var
+  guides(fill = guide_legend(byrow = TRUE,
+                             title = "City",
+                             order = 1,
+                             override.aes = list(size = 3))) +
+  # Add a second legend for categories
+  scale_color_manual(values = setNames(rep("black", nrow(pie_data10)), pie_data10$Location),
+                     breaks = pie_data10$Location,
+                     labels = pie_data10$category_var,
+                     name = "Category") +
+  guides(color = guide_legend(override.aes = list(fill = NA, color = NA),
+                              order = 2))
+
+# Add percentage labels using ggrepel
+p21 <- p21 +
+  geom_text_repel(
+    aes(label = paste0(Location, "\n", round(Percentage, 1), "%")),
+    position = position_stack(vjust = 0.5),
+    size = 3,
+    direction = "y",
+    force = 1,
+    segment.color = NA
+  )
+
+# Save the plot
+ggsave(
+  filename = here::here("Figures", "CITY_GDP_2019_FINAL.png"),
+  plot = p21,
+  width = 12,  # Increased width to accommodate the expanded legend
+  height = 12,
+  dpi = 300
+)
+
+### Stacked Total Employment for all cities, 2019----
+# require(knitr))
+# emptott_table <- pie_data11 %>%
+#   dplyr::select(Location, EMPTOTT) %>%
+#   arrange(desc(EMPTOTT))
+# 
+# # Format the EMPTOTT column
+# emptott_table$EMPTOTT <- format(emptott_table$EMPTOTT, big.mark = ",")
+# 
+# # Add row numbers
+# emptott_table <- emptott_table %>%
+#   mutate(Rank = row_number()) %>%
+# dplyr::select(Rank, everything())
+# 
+# | Rank|Location           |EMPTOTT |
+#   |----:|:------------------|:-------|
+#   |    1|Bangkok            |9,449.9 |
+#   |    2|Mumbai             |7,776.8 |
+#   |    3|Hangzhou, Zhejiang |5,761.5 |
+#   |    4|Ho Chi Minh City   |5,072.3 |
+#   |    5|Kuala Lumpur       |3,865.2 |
+#   |    6|Singapore          |3,752.8 |
+#   |    7|Surabaya           |3,481.8 |
+#   |    8|Chittagong         |1,398.7 |
+#   |    9|Kochi              |1,013.3 |
+#   |   10|Colombo            |729.4   |
+#   |   11|Qinhuangdao, Hebei |528.5   |
+
+# kable(emptott_table, caption = "Total Employment by Location")
+
+pie_data11 <- data_merged %>%
+  filter(Year == 2019) %>%
+  group_by(Location) %>%
+  summarise(EMPTOTT = sum(EMPTOTT, na.rm = TRUE),
+            category_var = first(category_var)) %>%  # Assume category_var is consistent per Location
+  ungroup() %>%
+  mutate(Total_Employment = sum(EMPTOTT, na.rm = TRUE),
+         Percentage = EMPTOTT / Total_Employment * 100) %>%
+  arrange(desc(Percentage))
+
+# Create a single vertical stacked bar plot
+p22 <- ggplot(pie_data11, aes(x = "", y = Percentage, fill = Location)) +
+  geom_bar(stat = "identity", width = 0.6) +
+  scale_fill_manual(values = wes_palette("Zissou1", n = nrow(pie_data11)
+                                         , type = "continuous")) +
+  scale_y_continuous(labels = scales::percent_format(scale = 1),
+                     limits = c(0, 100),
+                     breaks = seq(0, 100, 10)) +
+  labs(title = "Total Employment Distribution Across Cities (thousands), 2019",
+       x = NULL,
+       y = "Percentage of share of Total Employment",
+       fill = "City") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16, face = "bold"),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank(),
+    legend.position = "right",
+    legend.direction = "vertical",
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 10),
+    plot.margin = margin(10, 10, 10, 10)
+  ) +
+  # Modify only the legend to group by category_var
+  guides(fill = guide_legend(byrow = TRUE,
+                             title = "City",
+                             order = 1,
+                             override.aes = list(size = 3))) +
+  # Add a second legend for categories
+  scale_color_manual(values = setNames(rep("black", nrow(pie_data11)), pie_data11$Location),
+                     breaks = pie_data11$Location,
+                     labels = pie_data11$category_var,
+                     name = "Category") +
+  guides(color = guide_legend(override.aes = list(fill = NA, color = NA),
+                              order = 2))
+
+# Add percentage labels using ggrepel
+p22 <- p22 +
+  geom_text_repel(
+    aes(label = paste0(Location, "\n", round(Percentage, 1), "%")),
+    position = position_stack(vjust = 0.5),
+    size = 3,
+    direction = "y",
+    force = 1,
+    segment.color = NA
+  )
+
+# Save the plot
+ggsave(
+  filename = here::here("Figures", "CITY_TOTAL_ENPLOYMENT_2019_FINAL.png"),
+  plot = p22,
+  width = 12,  # Increased width to accommodate the expanded legend
+  height = 12,
+  dpi = 300
+)
+
+### Private employment, 2019----
+data_merged <- data_merged %>%
+  mutate(Private_Emp = EMPTOTT - EMPO_Q) 
+
+pie_data12 <- data_merged %>%
+  filter(Year == 2019) %>%
+  group_by(Location) %>%
+  summarise(Private_Emp = sum(Private_Emp, na.rm = TRUE),
+            category_var = first(category_var)) %>%  # Assume category_var is consistent per Location
+  ungroup() %>%
+  mutate(Total_Private_Employment = sum(Private_Emp, na.rm = TRUE),
+         Percentage = Private_Emp / Total_Private_Employment * 100) %>%
+  arrange(desc(Percentage))
+
+# Create a single vertical stacked bar plot
+p23 <- ggplot(pie_data12, aes(x = "", y = Percentage, fill = Location)) +
+  geom_bar(stat = "identity", width = 0.6) +
+  scale_fill_manual(values = wes_palette("Zissou1", n = nrow(pie_data12)
+                                         , type = "continuous")) +
+  scale_y_continuous(labels = scales::percent_format(scale = 1),
+                     limits = c(0, 100),
+                     breaks = seq(0, 100, 10)) +
+  labs(title = "Total Private Employment Distribution Across Cities (thousands), 2019",
+       x = NULL,
+       y = "Percentage of share of Total Private Employment",
+       fill = "City") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16, face = "bold"),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank(),
+    legend.position = "right",
+    legend.direction = "vertical",
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 10),
+    plot.margin = margin(10, 10, 10, 10)
+  ) +
+  # Modify only the legend to group by category_var
+  guides(fill = guide_legend(byrow = TRUE,
+                             title = "City",
+                             order = 1,
+                             override.aes = list(size = 3))) +
+  # Add a second legend for categories
+  scale_color_manual(values = setNames(rep("black", nrow(pie_data12)), pie_data12$Location),
+                     breaks = pie_data11$Location,
+                     labels = pie_data11$category_var,
+                     name = "Category") +
+  guides(color = guide_legend(override.aes = list(fill = NA, color = NA),
+                              order = 2))
+
+# Add percentage labels using ggrepel
+p23 <- p23 +
+  geom_text_repel(
+    aes(label = paste0(Location, "\n", round(Percentage, 1), "%")),
+    position = position_stack(vjust = 0.5),
+    size = 3,
+    direction = "y",
+    force = 1,
+    segment.color = NA
+  )
+
+# Save the plot
+ggsave(
+  filename = here::here("Figures", "CITY_PRIVATE_ENPLOYMENT_2019_FINAL.png"),
+  plot = p23,
+  width = 12,  # Increased width to accommodate the expanded legend
+  height = 12,
+  dpi = 300
+)
+
 
 
 
@@ -1349,8 +1625,16 @@ selected_columns <- c("Locationcode", "Location", "Country", "Year", "category_v
                       "Agriculture_Productivity", "Consumer_services_Productivity", "Financial_business_services_Productivity", 
                       "Industry_Productivity", "Public_services_Productivity", "Transport_Information_Communic_Services_Productivity")
 
+## Export database, panel data
 write.csv(data_merged[selected_columns], file_name, row.names = FALSE)
 
-# Write the CSV file
-write.csv(data_merged, file_name, row.names = FALSE)
+## Export database, time series format
+data_merged_ts <- data_merged[selected_columns] %>% 
+  pivot_longer(cols = c("Agriculture_Productivity", "Consumer_services_Productivity", "Financial_business_services_Productivity", 
+                        "Industry_Productivity", "Public_services_Productivity", "Transport_Information_Communic_Services_Productivity"),
+               names_to = "Sector",
+               values_to = "Productivity")
 
+
+
+  
