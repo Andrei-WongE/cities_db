@@ -401,7 +401,9 @@ for (loc in locations) {
   
   # Save the plot with location-specific filename
   ggsave(
-    filename = here::here("Figures", paste0("EMP_SECTOR_", gsub(" ", "_", loc),"2019_FINAL" , ".png")), 
+    filename = here::here("Figures", paste0("EMP_SECTOR_"
+                                            , gsub(" ", "_", loc),
+                                            "_FINAL" , ".png")), 
     plot = p11, 
     width = 10, 
     height = 8
@@ -464,7 +466,9 @@ for (loc in locations) {
   
   # Save the plot with location-specific filename
   ggsave(
-    filename = here::here("Figures", paste0("EMP_SECTOR_", gsub(" ", "_", loc), "_2019_FINAL.png")), 
+    filename = here::here("Figures", paste0("EMP_SECTOR"
+                                            , gsub(" ", "_", loc)
+                                            , "_2019_FINAL.png")), 
     plot = p11, 
     width = 14,
     height = 10
