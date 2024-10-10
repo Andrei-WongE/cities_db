@@ -1617,24 +1617,105 @@ today_date <- format(Sys.Date(), "%m-%d-%Y")
 file_name <- paste0("Figures_data_", today_date, ".csv")
 
 # Select the specified columns
-selected_columns <- c("Locationcode", "Location", "Country", "Year", "category_var", "category_group", 
-                      "Total_population", "Public_Services_Emp_Pct", "Industry_Emp_Pct", "Fiancial_Busines_Serices_Emp_Pct",
-                      "Consumer_services_Emp_Pct", "Agriculture_Emp_Pct", "Transport_Information_Communic_Services_Emp_Pct",
-                      "GDP_per_capita_PPP", "Agriculture_GVA_Pct", "Consumer_services_GVA_Pct", "Financial_business_services_GVA_Pct",
-                      "Industry_GVA_Pct", "Public_services_GVA_Pct", "Transport_Information_Communic_Services_GVA_Pct", 
-                      "Agriculture_Productivity", "Consumer_services_Productivity", "Financial_business_services_Productivity", 
-                      "Industry_Productivity", "Public_services_Productivity", "Transport_Information_Communic_Services_Productivity")
+# selected_columns <- c("Locationcode", "Location", "Country", "Year", "category_var", "category_group",
+#                         "Total_population",
+#                         "GDP_per_capita_PPP",
+#                         "Total_Employment_Pct",
+#                         "Avg_Household_Income_PPP",
+#                         "High_Skills_Employment_Pct",
+#                         "Clothing_footwear",
+#                         "Comm_goods_services",
+#                         "Food_non_alc_services",
+#                         "Health_goods_services",
+#                         "Housing_utilities",
+#                         "Social_protection",
+#                         "Agriculture_GVA_Pct",
+#                         "Consumer_services_GVA_Pct",
+#                         "Financial_business_services_GVA_Pct",
+#                         "Industry_GVA_Pct",
+#                         "Public_services_GVA_Pct",
+#                         "Transport_Information_Communic_Services_GVA_Pct",
+#                         "Agriculture_Productivity",
+#                         "Consumer_services_Productivity",
+#                         "Financial_business_services_Productivity",
+#                         "Industry_Productivity",
+#                         "Public_services_Productivity",
+#                         "Transport_Information_Communic_Services_Productivity",
+#                         "GVA_per_capita",
+#                         "Private_Emp",
+#                         "Public_Services_Emp_Pct",
+#                         "Industry_Emp_Pct",
+#                         "Financial_Busines_Serices_Emp_Pct",
+#                         "Consumer_services_Emp_Pct",
+#                         "Agriculture_Emp_Pct",
+#                         "Transport_Information_Communic_Services_Emp_Pct"
+#                       )
+
+data_merged <- data_merged %>%
+  mutate(Total_Employment = EMPTOTT,
+         Total_GVA = GVATOTPPPC,
+         Total_GDP = GDPTOTUSC)
+
+selected_columns <- c("Location", "Country", "Year", "category_var",
+                      "Total_Employment",
+                      "Public_Services_Emp_Pct",
+                      "Industry_Emp_Pct",
+                      "Financial_Busines_Serices_Emp_Pct",
+                      "Consumer_services_Emp_Pct",
+                      "Agriculture_Emp_Pct",
+                      "Transport_Information_Communic_Services_Emp_Pct",
+                      "Total_GVA",
+                      "Agriculture_GVA_Pct",
+                      "Consumer_services_GVA_Pct",
+                      "Financial_business_services_GVA_Pct",
+                      "Public_services_GVA_Pct",
+                      "Transport_Information_Communic_Services_GVA_Pct",
+                      "Agriculture_Productivity",
+                      "Consumer_services_Productivity",
+                      "Financial_business_services_Productivity",
+                      "Industry_Productivity",
+                      "Public_services_Productivity",
+                      "Transport_Information_Communic_Services_Productivity",
+                      "Total_GDP",
+                      "GDP_per_capita_PPP",
+                      "GVA_per_capita",
+                      "POPTOTT",
+                      "EMPTOTT",
+                      "EMPO_Q",
+                      "EMPB_F",
+                      "EMPK_N",
+                      "EMPGIR_U",
+                      "EMPA",
+                      "EMPHJ",
+                      "GVATOTPPPC",
+                      "GVAAPPPC",
+                      "GVAGIR_UPPPC",
+                      "GVAK_NPPPC",
+                      "GVAB_FPPPC",
+                      "GVAO_QPPPC",
+                      "GVAHJPPPC",
+                      "GDPTOTUSC",
+                      "GDPTOTPPPC")
 
 ## Export database, panel data
-write.csv(data_merged[selected_columns], file_name, row.names = FALSE)
+write.csv(data_merged[selected_columns], here("Output",file_name), row.names = FALSE)
 
 ## Export database, time series format
-data_merged_ts <- data_merged[selected_columns] %>% 
-  pivot_longer(cols = c("Agriculture_Productivity", "Consumer_services_Productivity", "Financial_business_services_Productivity", 
-                        "Industry_Productivity", "Public_services_Productivity", "Transport_Information_Communic_Services_Productivity"),
-               names_to = "Sector",
-               values_to = "Productivity")
+
+reshaped_data <- data_merged[selected_columns] %>%
+  pivot_longer(
+    cols = -c(Location, Country, category_var, Year),
+    names_to = "variable",
+    values_to = "value"
+  ) %>%
+  pivot_wider(
+    names_from = Year,
+    values_from = value
+  )
 
 
+## Export database, time series
+file_name <- paste0("Figures_data_ts_", today_date, ".csv")
+write.csv(reshaped_data, here("Output",file_name), row.names = FALSE)
 
-  
+
