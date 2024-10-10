@@ -64,4 +64,5 @@ create_structure_plot <- function(data, output_file, is_decimal = TRUE, palette_
   
   ggsave(filename = output_file, width = 12, height = 8)
   return(p)
+  gc()
 }

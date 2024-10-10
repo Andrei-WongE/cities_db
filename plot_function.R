@@ -127,5 +127,6 @@ create_population_plot <- function(data,
     ggsave(filename = here("Figures", filename), plot = p, width = width, height = height)
   }
   
+  gc()
   return(p)
 }

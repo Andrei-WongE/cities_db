@@ -6,7 +6,7 @@ AV_HH_DINC.png
 Average household personal disposable income, real, PPP / Source: OE
 	
 CONS_SPENDING.png
-	
+Consumer spending, real, PPP / Source: OE
 	
 
 EMP_WA_POP.png
