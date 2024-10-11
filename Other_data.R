@@ -1,15 +1,15 @@
 # #### Request ----
-# require(readr)
-# 
-# show_in_excel <- function(.data){
-# 
-# tmp <- paste0(tempfile(), ".csv")
-# 
-# write_xlsx(.data, tmp)
-# 
-# #fs:: file_show(path = tmp)
-# browseURL(tmp) 
-# }
+require(readr)
+
+show_in_excel <- function(.data){
+
+tmp <- paste0(tempfile(), ".csv")
+
+write_xlsx(.data, tmp)
+
+#fs:: file_show(path = tmp)
+browseURL(tmp)
+}
 # 
 # 
 # data %>% filter(Country=="Sri Lanka") %>% View(.)
