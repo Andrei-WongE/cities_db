@@ -73,15 +73,36 @@ for (var in names(labels_vector)) {
 data <- data[-c(1:7), ]
 
 # Clean variables
-data <- data %>%
+data <- data %>% 
   mutate(Location = trimws(sub(" - Total$", "", Location))) # National level includes this word
 
-# Create variables, national if 3 letter country code Locationcode
-data$National_level <- ifelse(nchar(data$Locationcode) == 3, 1, 0)
+# Create variables, National GDP if Country==Location
+data <- data %>%
+  group_by(Country, Year) %>%
+  mutate(National_level = if_else(Location == Country, 1, 0)) %>%
+  mutate(
+    GDPTOTPPPC = if_else(is.na(as.numeric(as.character(GDPTOTPPPC))), NA_real_, as.numeric(as.character(GDPTOTPPPC))),
+    EMPTOTT = if_else(is.na(as.numeric(as.character(EMPTOTT))), NA_real_, as.numeric(as.character(EMPTOTT))),
+    National_GDP = ifelse(any(Location == Country & !is.na(GDPTOTPPPC)), 
+                          GDPTOTPPPC[Location == Country & !is.na(GDPTOTPPPC)], 
+                          NA_real_),
+    National_EMP = ifelse(any(Location == Country & !is.na(EMPTOTT)), 
+                          EMPTOTT[Location == Country & !is.na(EMPTOTT)], 
+                          NA_real_)
+  ) %>%
+  ungroup() %>%
+  mutate(
+    City_GDP_share = if_else(Location == Country | is.na(GDPTOTPPPC) | is.na(National_GDP), 
+                             NA_real_, 
+                             GDPTOTPPPC / National_GDP),
+    City_EMP_share = if_else(Location == Country | is.na(EMPTOTT) | is.na(National_EMP), 
+                             NA_real_, 
+                             EMPTOTT / National_EMP)
+  )
 
 #Problems with missing data and In group 1117: `Country = "Colombia"` and `Year = "2000"
 
-# Filter the data for the required years)
+# Filter the data for the required years (2011-2019)
 data_filtered <- data %>%
   filter(Year >= 2011 & Year <= 2019)
 
@@ -94,22 +115,21 @@ data_filtered <- data %>%
 #   left_join(ppp_data, by = c("Location" = "capital", "Year" = "year"))
 
 # Get all variable labels
-var_label(data) %>% View()
+var_label(data_merged) %>% View()
 
 # Filer for location and create groups
 numeric_columns <- c("PEDYHHPUSN", "FCTOTPPPC", "FCTOTUSN", "FCTOTUSC", "EMPA", "EMPGIR_U", "EMPK_N", "EMPB_F",
                      "EMPO_Q", "EMPTOTT", "EMPHJ", "GDPTOTUSC", "GDPTOTPPPN", "GVAAUSN", "GVAGIR_UUSN", "GVAK_NUSN",
                      "GVAB_FUSN", "GVAO_QUSN", "GVATOTUSN", "GVAHJUSN")
 
-countries <- c("Sri Lanka", "India", "Bangladesh", "Pakistan", "Vietnam", "Indonesia",
-               "Singapore", "Thailand", "Malaysia", "China")
+# locations <- c("Colombo", "Mumbai", "Chennai", "Kochi", "Chittagong", "Karachi", "Ho Chi Minh City", "Surabaya",
+#                "Singapore", "Bangkok", "Kuala Lumpur", "Hangzhou", "Quingdao", "Tianjin", "Xiamen")
 
-location <- c("Colombo", "Mumbai", "Kochi", "Chittagong", "Ho Chi Minh City", "Surabaya",
+locations <- c("Colombo", "Mumbai", "Kochi", "Chittagong", "Ho Chi Minh City", "Surabaya",
                "Singapore", "Bangkok", "Kuala Lumpur", "Hangzhou", "Qinhuangdao")
 
 
-data_merged <- data_filtered %>% 
-  filter(Country %in% countries) %>%
+data_merged <- data_merged %>% 
   filter(Location != "") %>% 
   # mutate(across(everything(), ~na_if(., "NA"))) %>% 
   mutate(across(all_of(numeric_columns), as.numeric)) %>% 
@@ -118,11 +138,9 @@ data_merged <- data_filtered %>%
     str_detect(Location, "Mumbai|Kochi|Chittagong|Ho Chi Minh City|Surabaya") ~ 2,
     str_detect(Location, "Singapore|Bangkok|Kuala Lumpur|Hangzhou|Qinhuangdao") ~ 3
   )) %>% 
-  filter(
-    sapply(location, function(x) str_detect(Location, fixed(x))) %>% rowSums() > 0 | 
-      Location == "" |
-      (Location == Country & Country %in% countries)
-  )
+  filter(sapply(locations, function(x) str_detect(Location, fixed(x))) %>% rowSums() > 0 | Location == "") %>% 
+  filter(Locationcode != "SGP") #2 sets of Singapore data!!! Kept SGP2
+
 
 # Table of category_var
 table(data_merged$category_var)
@@ -564,7 +582,7 @@ p20 <- ggplot(pie_data9, aes(x = Year, y = Number_of_Employees, fill = Employmen
   scale_y_continuous(labels = comma) +
   guides(fill = guide_legend(nrow = 2, byrow = TRUE))
 
-ggsave(filename = here::here("Figures", "EMP_POP_COLOMBO_ABSOLUTE_FINAL.png"), plot = p20, width = 8, height = 6)
+ggsave(filename = here::here("Figures", "EMP_WA_POP_COLOMBO_ABSOLUTE_FINAL.png"), plot = p20, width = 8, height = 6)
 
 ### Total GDP-----
 create_population_plot(data_merged,
@@ -1479,53 +1497,69 @@ ggsave(
 data_merged <- data_merged %>%
   mutate(Private_Emp = EMPTOTT - EMPO_Q) 
 
-data_merged <- data_merged %>%
-  group_by(Country, Year) %>%
-  mutate(
-    National_Private_Emp = ifelse(National_level == 1, Private_Emp, NA_real_)
-  ) %>%
-  mutate(
-    National_Private_Emp = ifelse(is.na(National_Private_Emp)
-                                  , first(National_Private_Emp[National_level == 1])
-                          , National_Private_Emp)
-  ) %>%
-  ungroup() %>% 
-  mutate(
-    City_Private_Employment_share = ifelse(National_level == 0 & !is.na(National_Private_Emp), 
-                            pmin(Private_Emp / National_Private_Emp, 1), 
-                            NA_real_)
-  )
+pie_data12 <- data_merged %>%
+  filter(Year == 2019) %>%
+  group_by(Location) %>%
+  summarise(Private_Emp = sum(Private_Emp, na.rm = TRUE),
+            category_var = first(category_var)) %>%  # Assume category_var is consistent per Location
+  ungroup() %>%
+  mutate(Total_Private_Employment = sum(Private_Emp, na.rm = TRUE),
+         Percentage = Private_Emp / Total_Private_Employment * 100) %>%
+  arrange(desc(Percentage))
 
-# Prepare data for plotting
-pie_data22 <- data_merged %>%
-  filter(Year == 2019, National_level != 1) %>%
-  dplyr::select(Location, City_Private_Employment_share) %>%
-  rename(Percentage = City_Private_Employment_share)
-
-# Create the plot
-p32 <- ggplot(pie_data22, aes(x = reorder(Location, -Percentage)
-                              , y = Percentage, fill = Location)) +
-  geom_bar(stat = "identity", position = "dodge") +
-  scale_fill_manual(values = wes_palette("Zissou1", n = length(unique(pie_data22$Location))
+# Create a single vertical stacked bar plot
+p23 <- ggplot(pie_data12, aes(x = "", y = Percentage, fill = Location)) +
+  geom_bar(stat = "identity", width = 0.6) +
+  scale_fill_manual(values = wes_palette("Zissou1", n = nrow(pie_data12)
                                          , type = "continuous")) +
-  labs(title = "City Private Employment share of National Private Employment by City, 2019",
-       x = "City",
-       y = "Percentage") +
+  scale_y_continuous(labels = scales::percent_format(scale = 1),
+                     limits = c(0, 100),
+                     breaks = seq(0, 100, 10)) +
+  labs(title = "Total Private Employment Distribution Across Cities (thousands), 2019",
+       x = NULL,
+       y = "Percentage of share of Total Private Employment",
+       fill = "City") +
   theme_minimal() +
-  theme(plot.title = element_text(size = 16, face = "bold"),
-        axis.text.x = element_text(angle = 45, hjust = 1),
-        strip.text = element_text(size = 8),
-        legend.position = "none") +
-  scale_y_continuous(labels = scales::percent_format(accuracy = 0.01)) +
-  geom_text(aes(label = scales::percent(Percentage, accuracy = 0.01)),
-            position = position_dodge(width = 0.9), 
-            vjust = -0.5, 
-            size = 2.5)
+  theme(
+    plot.title = element_text(size = 16, face = "bold"),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank(),
+    legend.position = "right",
+    legend.direction = "vertical",
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 10),
+    plot.margin = margin(10, 10, 10, 10)
+  ) +
+  # Modify only the legend to group by category_var
+  guides(fill = guide_legend(byrow = TRUE,
+                             title = "City",
+                             order = 1,
+                             override.aes = list(size = 3))) +
+  # Add a second legend for categories
+  scale_color_manual(values = setNames(rep("black", nrow(pie_data12)), pie_data12$Location),
+                     breaks = pie_data11$Location,
+                     labels = pie_data11$category_var,
+                     name = "Category") +
+  guides(color = guide_legend(override.aes = list(fill = NA, color = NA),
+                              order = 2))
+
+# Add percentage labels using ggrepel
+p23 <- p23 +
+  geom_text_repel(
+    aes(label = paste0(Location, "\n", round(Percentage, 1), "%")),
+    position = position_stack(vjust = 0.5),
+    size = 3,
+    direction = "y",
+    force = 1,
+    segment.color = NA
+  )
 
 # Save the plot
 ggsave(
-  filename = here::here("Figures", "Share_Private_Employment_2019_FINAL.png"),
-  plot = p32,
+  filename = here::here("Figures", "CITY_PRIVATE_ENPLOYMENT_2019_FINAL.png"),
+  plot = p23,
   width = 12,  # Increased width to accommodate the expanded legend
   height = 12,
   dpi = 300
@@ -1533,169 +1567,16 @@ ggsave(
 
 ### City proportion of National GDP and Employment, 2019----
 
-# Data preparation
-data_merged <- data_merged %>%
-  group_by(Country, Year) %>%
-  mutate(
-    National_GDP = ifelse(National_level == 1, GDPTOTUSC, NA_real_),
-    National_EMP = ifelse(National_level == 1, EMPTOTT, NA_real_)
-  ) %>%
-  mutate(
-    National_GDP = ifelse(is.na(National_GDP), first(National_GDP[National_level == 1]), National_GDP),
-    National_EMP = ifelse(is.na(National_EMP), first(National_EMP[National_level == 1]), National_EMP)
-  ) %>%
-  ungroup() %>% 
-  mutate(
-    City_GDP_share = ifelse(National_level == 0 & !is.na(National_GDP), 
-                            pmin(GDPTOTUSC / National_GDP, 1), 
-                            NA_real_),
-    City_EMP_share = ifelse(National_level == 0 & !is.na(National_EMP), 
-                            pmin(EMPTOTT / National_EMP, 1), 
-                            NA_real_)
-  )
+National_GDP 
+National_EMP
+National_level
 
-# Prepare data for plotting
-pie_data20 <- data_merged %>%
-  filter(Year == 2019, National_level != 1) %>%
-  dplyr::select(Location, City_GDP_share) %>%
-  rename(Percentage = City_GDP_share)
+City_GDP_share
+City_EMP_share
 
-# Create the plot
-p30 <- ggplot(pie_data20, aes(x = reorder(Location, -Percentage)
-                              , y = Percentage, fill = Location)) +
-  geom_bar(stat = "identity", position = "dodge") +
-  scale_fill_manual(values = wes_palette("Zissou1", n = length(unique(pie_data20$Location))
-                                         , type = "continuous")) +
-  labs(title = "City GDP share of National GDP by City, 2019",
-       x = "City",
-       y = "Percentage") +
-  theme_minimal() +
-  theme(plot.title = element_text(size = 16, face = "bold"),
-    axis.text.x = element_text(angle = 45, hjust = 1),
-        strip.text = element_text(size = 8),
-        legend.position = "none") +
-  scale_y_continuous(labels = scales::percent_format(accuracy = 0.01)) +
-  geom_text(aes(label = scales::percent(Percentage, accuracy = 0.01)),
-            position = position_dodge(width = 0.9), 
-            vjust = -0.5, 
-            size = 2.5)
 
-# Save the plot
-ggsave(filename = here::here("Figures", "Share_GDP_2019_FINAL.png"),
-       plot = p30, width = 12, height = 8)
 
-pie_data21 <- data_merged %>%
-  filter(Year == 2019, National_level != 1) %>%
-  dplyr::select(Location, City_EMP_share) %>%
-  rename(Percentage = City_EMP_share)
 
-# Create the plot
-p31 <- ggplot(pie_data21, aes(x = reorder(Location, -Percentage)
-                              , y = Percentage, fill = Location)) +
-  geom_bar(stat = "identity", position = "dodge") +
-  scale_fill_manual(values = wes_palette("Zissou1", n = length(unique(pie_data21$Location))
-                                         , type = "continuous")) +
-  labs(title = "City Employment share of National GDP by City, 2019",
-       x = "City",
-       y = "Percentage") +
-  theme_minimal() +
-  theme(plot.title = element_text(size = 16, face = "bold"),
-        axis.text.x = element_text(angle = 45, hjust = 1),
-        strip.text = element_text(size = 8),
-        legend.position = "none") +
-  scale_y_continuous(labels = scales::percent_format(accuracy = 0.01)) +
-  geom_text(aes(label = scales::percent(Percentage, accuracy = 0.01)),
-            position = position_dodge(width = 0.9), 
-            vjust = -0.5, 
-            size = 2.5)
-
-# Save the plot
-ggsave(filename = here::here("Figures", "Share_Employment_2019_FINAL.png"),
-       plot = p31, width = 12, height = 8)
-
-### National employment by sector, 2019----
-# Only Colombo, raw total
-data_merged <- data_merged %>%
-  mutate(
-    Public_Services_Emp = EMPO_Q,
-    Industry_Emp = EMPB_F,
-    Financial_Busines_Serices_Emp = EMPK_N,
-    Consumer_services_Emp = EMPGIR_U,
-    Agriculture_Emp = EMPA,
-    Transport_Information_Communic_Services_Emp = EMPHJ
-  )
-
-data_merged <- data_merged %>%
-  group_by(Country, Year) %>%
-  mutate(
-    across(c(Public_Services_Emp, Industry_Emp, Financial_Busines_Serices_Emp, 
-             Consumer_services_Emp),
-           list(National = ~ifelse(National_level == 1, ., NA_real_)),
-           .names = "National_{.col}")
-  ) %>%
-  mutate(
-    across(starts_with("National_"),
-           ~ifelse(is.na(.), first(.[National_level == 1]), .))
-  ) %>%
-  ungroup() %>%
-  mutate(
-    across(c(Public_Services_Emp, Industry_Emp, Financial_Busines_Serices_Emp, 
-             Consumer_services_Emp),
-           list(City_share = ~ifelse(National_level == 0 & !is.na(get(paste0("National_", cur_column()))), 
-                                     pmin(. / get(paste0("National_", cur_column())), 1), 
-                                     NA_real_)),
-           .names = "City_{.col}_share")
-  )
-
-pie_data23 <- data_merged %>%
-  filter(Year == 2019, National_level != 1) %>%
-  dplyr::select(
-    Location,
-    City_Public_Services_Emp_share,
-    City_Industry_Emp_share,
-    City_Financial_Busines_Serices_Emp_share,
-    City_Consumer_services_Emp_share
-  ) %>%
-  pivot_longer(
-    cols = starts_with("City_"),
-    names_to = "Employment_Category",
-    values_to = "Percentage"
-  ) %>%
-  mutate(
-    Employment_Category = case_when(
-      Employment_Category == "City_Public_Services_Emp_share" ~ "Public Services",
-      Employment_Category == "City_Industry_Emp_share" ~ "Industry",
-      Employment_Category == "City_Financial_Busines_Serices_Emp_share" ~ "Financial & Business Services",
-      Employment_Category == "City_Consumer_services_Emp_share" ~ "Consumer Services"
-    )
-  )
-
-# Create individual plots for each Employment_Category
-employment_categories <- unique(pie_data23$Employment_Category)
-
-for (category in employment_categories) {
-  p_category <- pie_data23 %>%
-    filter(Employment_Category == category) %>%
-    ggplot(aes(x = reorder(Location, -Percentage), y = Percentage, fill = Location)) +
-    geom_bar(stat = "identity", position = "dodge") +
-    scale_fill_manual(values = wes_palette("Zissou1", n = length(unique(pie_data23$Location)), type = "continuous")) +
-    labs(title = paste("City Employment Share of", category, " of National", category ,", 2019"),
-         x = "City", y = "Percentage") +
-    theme_minimal() +
-    theme(plot.title = element_text(size = 16, face = "bold"),
-          axis.text.x = element_text(angle = 45, hjust = 1),
-          strip.text = element_text(size = 8),
-          legend.position = "none") +
-    scale_y_continuous(labels = scales::percent_format(accuracy = 0.01)) +
-    geom_text(aes(label = scales::percent(Percentage, accuracy = 0.01)),
-              position = position_dodge(width = 0.9), 
-              vjust = -0.5, 
-              size = 2.5)
-  
-  ggsave(filename = here::here("Figures", paste0("Share_", gsub(" ", "_", category)
-                                                 , "_Employment_2019_FINAL.png")),
-         plot = p_category, width = 12, height = 8)
-}
 
 # Output database -----
 require(lubridate)
