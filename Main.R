@@ -30,7 +30,7 @@ groundhog.day = "2024-04-25" #"2020-05-12"
 #Dowloaded fromn https://github.com/CredibilityLab/groundhog
 
 pkgs = c("dplyr", "tidyverse", "janitor", "sf"
-         , "ggplot2","xfun", "remotes", "sp", "spdep", "maptools"
+         , "ggplot2","xfun", "remotes", "sp", "spdep"
          , "foreach", "doParallel", "parallel", "progress"
          , "doSNOW", "purrr", "patchwork"
          , "haven", "openxlsx", "MASS", "reticulate"
@@ -40,7 +40,10 @@ pkgs = c("dplyr", "tidyverse", "janitor", "sf"
          , "writexl", "WDI", "wesanderson", "ggrepel"
 )
 
-groundhog.library(pkgs, groundhog.day, ignore.deps = c("stringi", "fs"))
+groundhog.library(pkgs, groundhog.day
+                  , ignore.deps =  "fs")
+
+#maptools removed fron CRAN      
 
 ## Program Set-up ------------
 
@@ -115,7 +118,7 @@ data_filtered <- data %>%
 #   left_join(ppp_data, by = c("Location" = "capital", "Year" = "year"))
 
 # Get all variable labels
-var_label(data_merged) %>% View()
+var_label(data_filtered) %>% View()
 
 # Filer for location and create groups
 numeric_columns <- c("PEDYHHPUSN", "FCTOTPPPC", "FCTOTUSN", "FCTOTUSC", "EMPA", "EMPGIR_U", "EMPK_N", "EMPB_F",
@@ -129,7 +132,7 @@ locations <- c("Colombo", "Mumbai", "Kochi", "Chittagong", "Ho Chi Minh City", "
                "Singapore", "Bangkok", "Kuala Lumpur", "Hangzhou", "Qinhuangdao")
 
 
-data_merged <- data_merged %>% 
+data_merged <- data_filtered %>% 
   filter(Location != "") %>% 
   # mutate(across(everything(), ~na_if(., "NA"))) %>% 
   mutate(across(all_of(numeric_columns), as.numeric)) %>% 
@@ -140,7 +143,6 @@ data_merged <- data_merged %>%
   )) %>% 
   filter(sapply(locations, function(x) str_detect(Location, fixed(x))) %>% rowSums() > 0 | Location == "") %>% 
   filter(Locationcode != "SGP") #2 sets of Singapore data!!! Kept SGP2
-
 
 # Table of category_var
 table(data_merged$category_var)
