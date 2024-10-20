@@ -105,7 +105,7 @@ mena_countries <- c(
   "Saudi Arabia",
   "Syria",
   "Tunisia",
-  "United Arab Emirates",
+  "UAE",
   "Yemen",
   "Palestine"
 )

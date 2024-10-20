@@ -141,8 +141,7 @@ data_merged <- data_filtered %>%
     str_detect(Location, "Mumbai|Kochi|Chittagong|Ho Chi Minh City|Surabaya") ~ 2,
     str_detect(Location, "Singapore|Bangkok|Kuala Lumpur|Hangzhou|Qinhuangdao") ~ 3
   )) %>% 
-  filter(sapply(locations, function(x) str_detect(Location, fixed(x))) %>% rowSums() > 0 | Location == "") %>% 
-  filter(Locationcode != "SGP") #2 sets of Singapore data!!! Kept SGP2
+  filter(sapply(locations, function(x) str_detect(Location, fixed(x))) %>% rowSums() > 0 | Location == "")
 
 # Table of category_var
 table(data_merged$category_var)
