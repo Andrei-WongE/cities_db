@@ -64,6 +64,40 @@ remove_all_na_columns <- function(df) {
 #   dplyr::select(where(~ !all(is.na(.)))) %>%
 #   colnames(.)
 
+# Function to find GHS files, check does not work
+library(here)
+library(fs)
+
+find_data_file <- function(folder = "Data", filename = "GHS_FUA_UCDB2015_GLOBE_R2019A_54009_1K_V1_0.gpkg") {
+  # Get all files recursively from the folder
+  all_files <- dir_ls(
+    path = here(folder), 
+    recurse = TRUE, 
+    regexp = filename,
+    type = "file"
+  )
+  
+  # If file is found, return the path in here() format
+  if (length(all_files) > 0) {
+    # Convert absolute path to relative path from project root
+    rel_path <- path_rel(all_files[1], start = here())
+    # Split path into components
+    path_components <- path_split(rel_path)[[1]]
+    # Create here() call
+    here_call <- paste0(
+      'here(', 
+      paste(sprintf('"%s"', path_components), collapse = ", "),
+      ')'
+    )
+    # Clean up escaped quotes
+    here_call <- gsub('\\"', '"', here_call)
+    return(here_call)
+  } else {
+    return(NULL)
+  }
+}
+
+
 mena_capitals <- c(
   "Algiers",         # Algeria
   "Manama",          # Bahrain
@@ -289,6 +323,12 @@ wbdb_mena_cities %>% distinct(.$city) %>% View()
 ucdb_full_vars <- read_csv(here("Data","UCDB_CCKSB_full_vars.csv")) %>%
   rename(Location = loc_latin)
 
+
+# ID_HDC_G0: unique ID of the Urban Center boundary. Use this to match with 
+# UCDB_2015 in OE 2021 cities.
+
+
+
 # data_colombo4 <- ucdb_full_vars %>% filter(CTR_MN_NM=="Sri Lanka") %>%
 #   dplyr::select(where(~ !all(is.na(.)))) %>%
 #   filter(loc_latin != "Sammanturai") # Row contains all missing data
@@ -320,6 +360,20 @@ ucdb_mena_cities <- as_tibble(ucdb_mena$cleaned_data) %>%
   mutate(matched_city = find_partial_matches(city, mena_capitals))
   
 ucdb_mena_cities %>% distinct(.$city) %>% View()
+
+# ### GHS-FUA----
+# Search file in Data folder
+path <- find_data_file(folder = "Data"
+              , filename = "GHS_FUA_UCDB2015_GLOBE_R2019A_54009_1K_V1_0.gpkg")
+
+ghs_fua <- st_read(
+  here("Data", "GHSL23", "GHS_FUA_UCDB2015_GLOBE_R2019A_54009_1K_V1_0.gpkg")
+)
+
+
+
+
+
 
 # Statistics -----
 # labels_vector <- setNames(labels$Label, labels$Variable)

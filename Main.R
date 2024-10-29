@@ -107,7 +107,8 @@ data <- data %>%
 
 # Filter the data for the required years (2011-2019)
 data_filtered <- data %>%
-  filter(Year >= 2011 & Year <= 2019)
+  # filter(Year >= 2011 & Year <= 2019)
+  filter(Year >= 2017 & Year <= 201)
 
 # # Extract PPP data from the World Bank API
 # ppp_data <- WDI(indicator = "PA.NUS.PPP", start = 2011, end = 2019, extra = TRUE) %>% 
