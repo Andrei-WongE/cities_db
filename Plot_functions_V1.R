@@ -198,3 +198,166 @@ save_plot <- function(plot, filename, width = 12, height = 8) {
     dpi = 300
   )
 }
+
+## Generic bar charts comparing cities
+#' Generate a bar plot for specified years and variable
+#' @param data Dataframe containing the data
+#' @param years Single year or vector of years to include in the plot
+#' @param variable_name Name of the variable to plot (column name in data)
+#' @param title Optional custom title for the plot
+#' @param subtitle Optional custom subtitle for the plot
+#' @param y_axis_label Optional custom y-axis label
+#' @param show_values Logical, whether to show value labels on bars (default: TRUE)
+#' @param value_format Function to format values (default: comma format)
+#' @param source_text Text to display as source (default: NULL)
+#' @param source_size Font size for source text (default: 8)
+#' @return A ggplot object
+generate_bar_plot <- function(data, 
+                              years,
+                              variable_name,
+                              title = NULL,
+                              subtitle = NULL,
+                              y_axis_label = NULL,
+                              show_values = TRUE,
+                              value_format = scales::comma,
+                              source_text = NULL,
+                              source_size = 8) {
+  
+  # Convert single year to vector if necessary
+  years <- unique(as.numeric(years))
+  
+  # Validate years
+  if (length(years) == 0) {
+    stop("No valid years provided")
+  }
+  
+  # Filter data for specified years
+  plot_data <- data[data$year %in% years, ]
+  
+  # Check if we have data
+  if (nrow(plot_data) == 0) {
+    stop("No data found for the specified years")
+  }
+  
+  # Set default title if not provided
+  if (is.null(title)) {
+    if (length(years) == 1) {
+      title <- paste(variable_name, "in", years)
+    } else {
+      title <- paste("Distribution of", variable_name, "by Year")
+    }
+  }
+  
+  # Set default y-axis label if not provided
+  if (is.null(y_axis_label)) {
+    y_axis_label <- variable_name
+  }
+  
+  # Calculate plot height based on whether source is present
+  plot_margin <- if (!is.null(source_text)) {
+    margin(t = 20, r = 20, b = 40, l = 20)  # Extra bottom margin for source
+  } else {
+    margin(20, 20, 20, 20)
+  }
+  
+  # Create the base plot
+  p <- ggplot(plot_data, aes_string(x = "year", y = variable_name)) +
+    geom_bar(stat = "identity", 
+             fill = get_standard_colors(1),
+             alpha = 0.8,
+             width = 0.7) +
+    create_standard_theme()
+  
+  # Adjust x-axis based on number of years
+  if (length(years) == 1) {
+    p <- p + 
+      theme(
+        axis.text.x = element_text(angle = 0, hjust = 0.5),  # Center align x-axis label
+        panel.grid.major.x = element_blank()  # Remove vertical grid for single year
+      )
+  }
+  
+  # Add remaining theme elements and labels
+  p <- p +
+    theme(plot.margin = plot_margin) +
+    labs(title = title,
+         subtitle = subtitle,
+         x = if(length(years) == 1) "" else "Year",  # Remove x-axis label for single year
+         y = y_axis_label)
+  
+  # Add value labels if requested
+  if (show_values) {
+    p <- p + 
+      geom_text(aes_string(label = paste0("value_format(", variable_name, ")")),
+                vjust = -0.5,
+                size = 3)
+  }
+  
+  # Scale y-axis using comma format
+  p <- p + scale_y_continuous(labels = value_format)
+  
+  # Add source if provided
+  if (!is.null(source_text)) {
+    p <- p + 
+      labs(caption = paste0("Source: ", source_text)) +
+      theme(
+        plot.caption = element_text(
+          size = source_size,
+          hjust = 0,  # Left align
+          margin = margin(t = 20)  # Add space above source
+        )
+      )
+  }
+  
+  return(p)
+}
+
+#' Save a plot to a specified directory
+#' @param plot ggplot object to save
+#' @param filename Name of the file to save (including extension)
+#' @param path Directory path where the plot should be saved (default: NULL)
+#' @param width Width of the plot in inches (default: 12)
+#' @param height Height of the plot in inches (default: 8)
+#' @param create_dir Logical, whether to create directory if it doesn't exist (default: TRUE)
+#' @return None (saves plot to file)
+save_plot <- function(plot, 
+                      filename, 
+                      path = NULL,
+                      width = 12, 
+                      height = 8,
+                      create_dir = TRUE) {
+  
+  # If no path is provided, use the default "Figures" directory
+  if (is.null(path)) {
+    path <- "Figures"
+  }
+  
+  # Convert to absolute path if relative path is provided
+  full_path <- here::here(path)
+  
+  # Create directory if it doesn't exist and create_dir is TRUE
+  if (!dir.exists(full_path)) {
+    if (create_dir) {
+      dir.create(full_path, recursive = TRUE)
+      message(sprintf("Created directory: %s", full_path))
+    } else {
+      stop(sprintf("Directory does not exist: %s", full_path))
+    }
+  }
+  
+  # Construct full file path
+  file_path <- file.path(full_path, filename)
+  
+  # Save the plot
+  ggsave(
+    filename = file_path,
+    plot = plot,
+    width = width,
+    height = height,
+    dpi = 300
+  )
+  
+  # Confirm save location
+  message(sprintf("Plot saved to: %s", file_path))
+}
+

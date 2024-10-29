@@ -18,26 +18,26 @@ create_population_plot <- function(data,
                                    numeric_columns) {
   
   # Order of locations based on their last data point
-  location_order <- data_merged %>%
+  location_order <- data %>%
     group_by(!!sym(location_var)) %>%
     summarize(last_value = last(!!sym(variable_name))) %>%
     arrange(desc(last_value)) %>%
     pull(!!sym(location_var))
   
-  data_merged[[location_var]] <- factor(data_merged[[location_var]], levels = location_order)
+  data[[location_var]] <- factor(data[[location_var]], levels = location_order)
   
   # Create interaction factor
-  data_merged$interaction_factor <- interaction(data_merged[[location_var]], data_merged[[category_var]], drop = TRUE)
+  data$interaction_factor <- interaction(data[[location_var]], data[[category_var]], drop = TRUE)
   
   # Get unique levels of the interaction factor
-  interaction_levels <- levels(data_merged$interaction_factor)
+  interaction_levels <- levels(data$interaction_factor)
   
   # Adjust the number of colors to match the number of interaction levels
   colors <- wes_palette(palette, n = length(interaction_levels), type = "continuous")
   
   # Get the last year in the dataset
-  first_year <- min(data_merged[[year_var]])
-  last_year <- max(data_merged[[year_var]])
+  first_year <- min(data[[year_var]])
+  last_year <- max(data[[year_var]])
   
   # Calculate breaks to include first and last year
   year_breaks <- unique(c(first_year, 
@@ -45,7 +45,7 @@ create_population_plot <- function(data,
                           last_year))
   
   # Create the plot
-  p <- ggplot(data_merged, aes(x = !!sym(year_var),
+  p <- ggplot(data, aes(x = !!sym(year_var),
                                y = !!sym(variable_name),
                                color = interaction_factor,
                                group = interaction_factor)) +
@@ -72,7 +72,7 @@ create_population_plot <- function(data,
   }
   
   # Filter data for labels, keeping only the highest category for each location
-  label_data <- data_merged %>%
+  label_data <- data %>%
     group_by(!!sym(location_var)) %>%
     filter(!!sym(category_var) == last(!!sym(category_var))) %>%
     ungroup()
@@ -124,7 +124,7 @@ create_population_plot <- function(data,
                        breaks = year_breaks,
                        labels = year_breaks)
   if (save_plot) {
-    ggsave(filename = here("Figures", filename), plot = p, width = width, height = height)
+    ggsave(filename = here("Output", "India", filename), plot = p, width = width, height = height)
   }
   
   gc()
