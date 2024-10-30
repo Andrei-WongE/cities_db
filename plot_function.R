@@ -20,7 +20,6 @@
 #' @param height Numeric value for plot height in inches when saving
 #'
 #' @return A ggplot2 object containing the visualization 
-
 # Load required packages
 library(ggplot2)
 library(dplyr)
@@ -35,6 +34,9 @@ create_population_plot <- function(data,
                                    year_var = "Year", 
                                    variable_name = "var_name",
                                    title = "Population by Location within Categories",
+                                   subtitle = NULL,
+                                   source_text = NULL,
+                                   source_size = 8,
                                    x_label = "Categories",
                                    y_label = "Population (thousands)",
                                    palette = "Zissou1",
@@ -73,6 +75,10 @@ create_population_plot <- function(data,
       !!sym(year_var) := as.numeric(!!sym(year_var))
     )
   
+  # Create combined location-category labels
+  data <- data %>%
+    mutate(location_with_category = paste0(!!sym(location_var), " (", !!sym(category_var), ")"))
+  
   # Validate data after cleaning
   if (nrow(data) == 0) {
     stop("No valid data remains after removing NA values")
@@ -83,7 +89,7 @@ create_population_plot <- function(data,
   
   if (is_single_year) {
     # Create custom color palette for locations
-    n_locations <- length(unique(data[[location_var]]))
+    n_locations <- length(unique(data$location_with_category))
     location_colors <- colorRampPalette(wes_palette(palette, type = "continuous"))(n_locations)
     
     # Order the data by the specified criteria
@@ -100,14 +106,14 @@ create_population_plot <- function(data,
     # Update factor levels based on ordering
     data[[category_var]] <- factor(data[[category_var]], 
                                    levels = unique(data[[category_var]]))
-    data[[location_var]] <- factor(data[[location_var]], 
-                                   levels = unique(data[[location_var]]))
+    data$location_with_category <- factor(data$location_with_category,
+                                          levels = unique(data$location_with_category))
     
     # Create the plot
     p <- ggplot(data, 
                 aes(x = !!sym(category_var),
                     y = !!sym(variable_name),
-                    fill = !!sym(location_var))) +
+                    fill = location_with_category)) +
       geom_bar(stat = "identity",
                position = position_dodge(width = 0.9),
                width = 0.8) +
@@ -116,61 +122,54 @@ create_population_plot <- function(data,
       geom_text(aes(label = format(round(!!sym(variable_name)), big.mark = ",")),
                 position = position_dodge(width = 0.9),
                 vjust = -0.5,
-                size = label_size) +
-      theme_minimal() +
-      theme(
-        plot.title = element_text(face = "bold", size = title_size, hjust = 0.5),
-        axis.title.x = element_text(face = "bold"),
-        axis.title.y = element_text(face = "bold"),
-        axis.text.x = element_text(angle = 45, hjust = 1),
-        plot.margin = margin(t = 20, r = 20, b = 20, l = 20),
-        legend.position = "right",
-        legend.title = element_text(face = "bold"),
-        panel.grid.major = element_line(color = "gray90"),
-        panel.grid.minor = element_line(color = "gray95")
-      ) +
-      scale_y_continuous(labels = comma_format(),
-                         expand = expansion(mult = c(0, 0.15))) +
-      labs(title = title,
-           x = x_label,
-           y = y_label)
+                size = label_size)
     
   } else {
     # Create plot for multiple years
     p <- ggplot(data, 
                 aes(x = !!sym(year_var),
                     y = !!sym(variable_name),
-                    color = !!sym(location_var),
-                    group = !!sym(location_var))) +
+                    color = location_with_category,
+                    group = location_with_category)) +
       geom_line(linewidth = line_size) +
       geom_point(size = 2) +
-      scale_color_manual(values = wes_palette(palette, n = length(unique(data[[location_var]])), type = "continuous"),
+      scale_color_manual(values = wes_palette(palette, n = length(unique(data$location_with_category)), type = "continuous"),
                          name = "Location") +
       scale_x_continuous(breaks = unique(data[[year_var]])) +
       geom_text_repel(data = data %>% 
-                        group_by(!!sym(location_var)) %>%
+                        group_by(location_with_category) %>%
                         slice_max(!!sym(year_var)),
-                      aes(label = paste0(!!sym(location_var), "\n",
+                      aes(label = paste0(location_with_category, "\n",
                                          format(!!sym(variable_name), big.mark = ","))),
                       nudge_x = 0.5,
                       direction = "y",
                       hjust = 0,
-                      size = label_size) +
-      theme_minimal() +
-      theme(
-        plot.title = element_text(face = "bold", size = title_size, hjust = 0.5),
-        axis.title.x = element_text(face = "bold"),
-        axis.title.y = element_text(face = "bold"),
-        plot.margin = margin(t = 20, r = 20, b = 20, l = 20),
-        legend.position = "right",
-        legend.title = element_text(face = "bold")
-      ) +
-      scale_y_continuous(labels = comma_format(),
-                         expand = expansion(mult = c(0, 0.15))) +
-      labs(title = title,
-           x = x_label,
-           y = y_label)
+                      size = label_size)
   }
+  
+  # Add common theme elements and labels
+  p <- p + theme_minimal() +
+    theme(
+      plot.title = element_text(face = "bold", size = title_size, hjust = 0.5),
+      plot.subtitle = element_text(hjust = 0.5),
+      axis.title.x = element_text(face = "bold"),
+      axis.title.y = element_text(face = "bold"),
+      axis.text.x = element_text(angle = 45, hjust = 1),
+      plot.margin = margin(t = 20, r = 20, b = 30, l = 20),
+      legend.position = "right",
+      legend.title = element_text(face = "bold"),
+      legend.text = element_text(size = 9),
+      panel.grid.major = element_line(color = "gray90"),
+      panel.grid.minor = element_line(color = "gray95"),
+      plot.caption = element_text(size = source_size, color = "gray30", hjust = 1)
+    ) +
+    scale_y_continuous(labels = comma_format(),
+                       expand = expansion(mult = c(0, 0.15))) +
+    labs(title = title,
+         subtitle = subtitle,
+         caption = source_text,
+         x = x_label,
+         y = y_label)
   
   if (save_plot) {
     ggsave(filename = here("Output", "India", filename), 
@@ -181,3 +180,4 @@ create_population_plot <- function(data,
   
   return(p)
 }
+
