@@ -210,12 +210,13 @@ oe_comparators <-
   dplyr::filter(mission_categories != " ")
 
 ## Population
-create_population_plot(subset(oe_india, Year == 2019),
+create_population_plot(subset(oe_comparators, Year == 2019),
                        location_var = "Location",
                        category_var = "mission_categories", 
                        year_var = "Year", 
                        variable_name = "POPTOTT",
                        title = "Total Population by Category and City, 2019",
+                       subtitle = "Total population in thousands",
                        x_label = "Year",
                        y_label = "Total Population (thousands)",
                        category_order = "desc",
@@ -224,13 +225,13 @@ create_population_plot(subset(oe_india, Year == 2019),
                        line_size = 1.2,
                        label_size = 3,
                        title_size = 16,  
-                       save_plot = FALSE,
+                       save_plot = TRUE,
                        filename = "Total_Population_Leading-Comparators_2019.png",
                        width = 10,
                        height = 8
                        )
 ## GDP
-create_population_plot(subset(oe_india, Year == 2019),
+create_population_plot(subset(oe_comparators, Year == 2019),
                        location_var = "Location",
                        category_var = "mission_categories", 
                        year_var = "Year", 
@@ -325,8 +326,13 @@ cities_list <- list(
   Comparators = c("Guangzhou, Guangdong", "Bangkok", "Ahmedabad", "Shanghai", "Hyderabad (India)", "Monterrey")
 )
 
-oe_comparators <-
-  add_group_category(oe_comparators, 
+oe_comparators2 <- data %>% 
+  mutate(POPTOTT = as.numeric(POPTOTT)) %>% 
+  mutate(GDPTOTUSC = as.numeric(GDPTOTUSC)) %>% 
+  mutate(GDP_per_capita_PPP = GDPTOTPPPC / POPTOTT)
+
+oe_comparators2 <-
+  add_group_category(oe_comparators2, 
                      categories = cities_list,
                      var_col = "Location",
                      new_col = "cities_list",
