@@ -6,15 +6,15 @@ require(tidyr)
 require(stringr)
 
 show_in_excel <- function(.data){
-  
-require(writexl)
-
-tmp <- paste0(tempfile(), ".csv")
-
-writexl::write_xlsx(.data, tmp)
-
-#fs:: file_show(path = tmp)
-browseURL(tmp)
+  require(writexl)
+  tmp <- paste0(tempfile(), ".xlsx")
+  # If .data is a list of data frames, write as separate sheets
+  if(is.list(.data) && !is.data.frame(.data)) {
+    writexl::write_xlsx(x = setNames(.data, paste0("Sheet", seq_along(.data))), path = tmp)
+  } else {
+    writexl::write_xlsx(x = .data, path = tmp)
+  }
+  browseURL(tmp)
 }
 
 # Function to find partial matches

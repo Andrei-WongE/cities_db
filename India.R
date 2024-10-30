@@ -1,6 +1,7 @@
 # Request for Indian cities data
 
 # Load packages and data, see Main file
+require(here)
 
 source(here("Master_variables.R"))
 
@@ -21,11 +22,13 @@ oe_india %>% distinct(.$Location) %>% View() #72 (not considering national
 
 # Charts, all cities
 # 
-# 1 chart, with bar chart of population in decreasing order, for 2019.  (for first three try to make sure the labels are readable)
+# 1 chart, with bar chart of population in decr- <- easing order, for 2019.  (for first three try to make sure the labels are readable)
 # 1 chart, with bar chart of GDP (real, PPP) in decreasing order, for 2019.
 # 1 chart, with bar chart of GDP per capita in decreasing order, for 2019.
 # 1 chart, with line chart of total GDP growth 2000-2019, highlight highest grower and worst performer, and focal cities
-# Distance for frontiers, all cities in the dataset, color Indian cities, color for each size band of population with top 3% (use orange for Indian cities, and bright green for the frontier), the other think you can do here is estimate simple regressions of Y=Bp+r (where Y is GDP, and p is population) – you estimate B using regression  for only Indian cities, and B using regressions for only frontier cities, and I can use this to estimate the “distance to fronteer”.)
+# Distance for frontiers, all cities in the dataset, color Indian cities, 
+# color for each size band of population with top 3% (use orange for Indian cities, 
+# and bright green for the frontier), the other think you can do here is estimate simple regressions of Y=Bp+r (where Y is GDP, and p is population) – you estimate B using regression  for only Indian cities, and B using regressions for only frontier cities, and I can use this to estimate the “distance to fronteer”.)
 # Label cities that are standing out.
 # 
  
@@ -174,7 +177,37 @@ ggsave(filename = here::here("Output","India", "GDP_growth_2001-2019.png"),
        plot = p04, width = 12, height = 15, dpi = 600)
 
 ## Frontier distance
-
+data %>% 
+  mutate(GDPTOTUSC = as.numeric(GDPTOTUSC), 
+         POPTOTT = as.numeric(POPTOTT)) %>% 
+  filter(Year %in% c(2001, 2019)) %>%
+  group_by(Location) %>%
+  reframe(
+    GDP_growth = (GDPTOTUSC[Year == 2019] - GDPTOTUSC[Year == 2001]) / GDPTOTUSC[Year == 2001],
+    POPTOTT = POPTOTT[Year == 2019],
+    Country = Country[1]
+  ) %>%
+  filter(Location != Country) %>%
+  mutate(
+    growth_quantile = ntile(GDP_growth, 100),
+    point_color = case_when(
+      Country == "India" ~ "orange",
+      growth_quantile >= 97 ~ "green",
+      TRUE ~ "grey"
+    )
+  ) %>%
+  ggplot(aes(x = log(POPTOTT), y = log(GDP_growth), color = point_color)) +
+  geom_point() +
+  geom_text(data = . %>% filter(Country == "India"), 
+            aes(label = Location), 
+            hjust = -0.1, 
+            size = 3) +
+  geom_smooth(method = "lm", se = FALSE) +
+  scale_color_identity() +
+  labs(x = "Log Population (2019)", 
+       y = "Log GDP Growth Rate (2001-2019)",
+       title = "GDP Growth vs Population") +
+  theme_minimal()
 
 # Charts, focus and comparators -----
 # Mission cities
@@ -215,7 +248,7 @@ create_population_plot(subset(oe_comparators, Year == 2019),
                        category_var = "mission_categories", 
                        year_var = "Year", 
                        variable_name = "POPTOTT",
-                       title = "Total Population by Category and Mission City, 2019",
+                       title = "Total Population by Selected cities and Comparatorsy, 2019",
                        subtitle = "Total population in thousands",
                        source_text = "Oxford City Database, 2022",  
                        source_size = 8,     
@@ -238,7 +271,7 @@ create_population_plot(subset(oe_comparators, Year == 2019),
                        category_var = "mission_categories", 
                        year_var = "Year", 
                        variable_name = "GDPTOTUSC",
-                       title = "GDP by Category and Mission City, 2019",
+                       title = "GDP by Selected cities and Comparatorsy, 2019",
                        subtitle = NULL,
                        source_text = "Oxford City Database, 2022",  
                        source_size = 8,    
@@ -262,7 +295,7 @@ create_population_plot(subset(oe_comparators, Year == 2019),
                        category_var = "mission_categories", 
                        year_var = "Year", 
                        variable_name = "GDP_per_capita_PPP",
-                       title = "GDP per capita by Category and Mission City, 2019",
+                       title = "GDP per capita by Selected cities and Comparatorsy, 2019",
                        subtitle = NULL,
                        source_text = "Oxford City Database, 2022",  
                        source_size = 8,    
@@ -285,8 +318,8 @@ growth_rates_comparators <- oe_comparators %>%
   dplyr::filter(Year %in% c(2001, 2019)) %>%
   group_by(Location) %>%
   mutate(GDP_growth = if_else(Year == 2019,
-                              (GDPTOTUSC[Year == 2019] - GDPTOTUSC[Year == 2001]) / GDPTOTUSC[Year == 2001],
-                              NA_real_)) %>%  # Only created in Location[Year == 2019]
+                              (GDPTOTUSC[Year == 2019]/GDPTOTUSC[Year == 2001])^(1/18) - 1,  # CAGR formula
+                              NA_real_)) %>%
   dplyr::filter(Year == c(2001, 2019)) %>%
   dplyr::select(Location, Year, GDP_growth)
 
@@ -312,18 +345,24 @@ create_population_plot(subset(oe_comparators, Year == 2019),
                        category_var = "mission_categories", 
                        year_var = "Year", 
                        variable_name = "GDP_growth",
-                       title = "GDP growth rate by Category and Mission City, 2001-2019",
-                       subtitle = "Total population in thousands",
+                       value_format = scales::label_number(
+                         unit = "%", 
+                         scale = 100,
+                         accuracy = 0.1,
+                         decimal.mark = ".",
+                         suffix = "%"),
+                       title = "GDP growth rate by Selected cities and Comparatorsy, 2001-2019",
+                       subtitle = "Compound Average Growth Rate (CAGR)",
                        source_text = "Oxford City Database, 2022",  
                        source_size = 8,    
                        x_label = "Year",
                        y_label = "Percentage change between 2001-2019",
-                       category_order = "desc",
-                       within_group_order = "desc",
                        palette = "Zissou1",
                        line_size = 1.2,
                        label_size = 3,
-                       title_size = 16,  
+                       title_size = 16,
+                       category_order = "by_name",
+                       within_group_order = "by_name",
                        save_plot = TRUE,
                        filename = "GDP_growth_Mission-Cities_2001-2019.png",
                        width = 10,
@@ -427,8 +466,8 @@ growth_rates_comparators2 <- oe_comparators2 %>%
   dplyr::filter(Year %in% c(2001, 2019)) %>%
   group_by(Location) %>%
   mutate(GDP_growth = if_else(Year == 2019,
-                              (GDPTOTUSC[Year == 2019] - GDPTOTUSC[Year == 2001]) / GDPTOTUSC[Year == 2001],
-                              NA_real_)) %>%  # Only created in Location[Year == 2019]
+                              (GDPTOTUSC[Year == 2019]/GDPTOTUSC[Year == 2001])^(1/18) - 1,  # CAGR formula
+                              NA_real_)) %>%
   dplyr::filter(Year == c(2001, 2019)) %>%
   dplyr::select(Location, Year, GDP_growth)
 
@@ -455,7 +494,7 @@ create_population_plot(subset(oe_comparators2, Year == 2019),
                        year_var = "Year", 
                        variable_name = "GDP_growth",
                        title = "GDP growth rate by Leading and Comparators Cities, 2001-2019",
-                       subtitle = "Total population in thousands",
+                       subtitle = "Compound Average Growth Rate (CAGR)",
                        source_text = "Oxford City Database, 2022",  
                        source_size = 8,    
                        x_label = "Year",
