@@ -537,6 +537,8 @@ pie_data <- pie_data %>%
   group_by(Location) %>%
   mutate(Total = sum(Percentage)) %>%
   mutate(Percentage = Percentage / Total * 100) %>%
+  mutate(Sector = str_remove(Sector, "_GVA_Pct"),
+         Sector = str_replace_all(Sector, "_", " ")) %>% 
   ungroup() 
 
 # Create a single plot with all locations
@@ -590,7 +592,9 @@ locations <- unique(pie_data2$Location)
 # Create a plot for each location
 for (loc in locations) {
   # Filter data for the current location
-  loc_data <- pie_data2 %>% filter(Location == loc) %>%  mutate(Year = as.numeric(Year))
+  loc_data <- pie_data2 %>% filter(Location == loc) %>%  mutate(Year = as.numeric(Year)) %>% 
+    mutate(Sector = str_remove(Sector, "_GVA_Pct"),
+           Sector = str_replace_all(Sector, "_", " "))
   
   # Get start and end years
   start_year <- min(loc_data$Year)
