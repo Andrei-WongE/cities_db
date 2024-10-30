@@ -407,3 +407,74 @@ generate_bar_plot <- function(data,
   
   return(p)
 }
+
+#' Add group categories to data frame
+#' @param data Dataframe containing the variable to be categorized
+#' @param categories List of category definitions
+#' @param var_col Name of the variable column to categorize
+#' @param new_col Name for the new category column
+#' @param warn_unmapped Logical, whether to warn about unmapped values (default: TRUE)
+#' @return Dataframe with added category column
+add_group_category <- function(data, 
+                               categories,
+                               var_col,
+                               new_col,
+                               warn_unmapped = TRUE) {
+  
+  # Input validation
+  if (!is.data.frame(data)) {
+    stop("Input must be a data frame")
+  }
+  
+  if (!var_col %in% names(data)) {
+    stop(sprintf("Column '%s' not found in the data frame", var_col))
+  }
+  
+  if (!is.list(categories)) {
+    stop("Categories must be provided as a list")
+  }
+  
+  if (length(categories) == 0) {
+    stop("Categories list cannot be empty")
+  }
+  
+  # Create a mapping vector for easier assignment
+  group_mapping <- unlist(sapply(names(categories), function(group) {
+    setNames(rep(group, length(categories[[group]])), categories[[group]])
+  }))
+  
+  # Create a copy of the input data
+  result <- data
+  
+  # Create the case_when expressions dynamically based on the categories
+  case_expressions <- lapply(seq_along(categories), function(i) {
+    quo(!!sym(var_col) %in% categories[[!!i]] ~ names(categories)[!!i])
+  })
+  
+  # Add default case
+  case_expressions <- c(case_expressions, quo(TRUE ~ NA_character_))
+  
+  # Add the new column using case_when for consistent group assignment
+  result <- result %>%
+    group_by(across(all_of(var_col))) %>%
+    mutate(
+      !!new_col := case_when(!!!case_expressions)
+    ) %>%
+    ungroup() %>%
+    mutate(!!new_col := factor(!!sym(new_col), levels = names(categories)))
+  
+  # Check only for items in the categories list that weren't successfully mapped
+  all_category_items <- unlist(categories)
+  unmapped_items <- all_category_items[!all_category_items %in% unique(data[[var_col]])]
+  
+  if (warn_unmapped && length(unmapped_items) > 0) {
+    warning(sprintf(
+      "The following items from your categories were not found in the data:\n%s",
+      paste(unmapped_items, collapse = "\n")
+    ))
+  } else {
+    message("All categories successfully mapped")
+  }
+  
+  return(result)
+}

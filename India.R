@@ -2,6 +2,8 @@
 
 # Load packages and data, see Main file
 
+source(here("Master_variables.R"))
+
 if(!exists("data")) stop("Data not found")
 
 source("Plot_functions_V1.R")
@@ -42,14 +44,14 @@ oe_india %>% distinct(.$Location) %>% View() #72 (not considering national
 # 1 chart, bar chart 100%, structure of GVA
 # 10 charts (or however many cities and comparators we get) , stacked plot, change in GVA, 2000-2019
 
-# General comparisson charts
-
+# Data wrangling
 oe_india <- oe_india %>% 
   mutate(POPTOTT = as.numeric(POPTOTT)) %>% 
   mutate(GDPTOTUSC = as.numeric(GDPTOTUSC)) %>% 
   mutate(GDP_per_capita_PPP = GDPTOTPPPC / POPTOTT) %>%
   filter(Location != Country)
 
+# General comparison charts -----
 
 ## Population
   
@@ -172,3 +174,163 @@ ggsave(filename = here::here("Output","India", "GDP_growth_2001-2019.png"),
        plot = p04, width = 12, height = 15, dpi = 600)
 
 ## Frontier distance
+
+
+# Charts, focus and comparators -----
+# Mission cities
+# # # # # # # # # # # # # # # # # 
+mission_categories <- list(
+  Group_1 = c("Bhubaneswar", 
+                "Vijayawada",
+                "Visakhapatnam", 
+                "Guwahati"),
+  
+  Group_2 = c("Indore",
+                "Monterrey",
+                "Seattle-Tacoma-Bellevue, WA",
+                "Houston-The Woodlands-Sugar Land, TX"),
+
+  Group_3 = c("Bhopal",
+                "Aurangabad",
+                "Chandigarh",
+                "Thiruvananthapuram")
+)
+
+oe_comparators <- data %>% 
+  mutate(POPTOTT = as.numeric(POPTOTT)) %>% 
+  mutate(GDPTOTUSC = as.numeric(GDPTOTUSC)) %>% 
+  mutate(GDP_per_capita_PPP = GDPTOTPPPC / POPTOTT)
+
+oe_comparators <-
+  add_group_category(oe_comparators, 
+                    categories = mission_categories,
+                    var_col = "Location",
+                    new_col = "mission_categories",
+                    warn_unmapped = TRUE) %>% 
+  dplyr::filter(mission_categories != " ")
+
+## Population
+create_population_plot(subset(oe_india, Year == 2019),
+                       location_var = "Location",
+                       category_var = "mission_categories", 
+                       year_var = "Year", 
+                       variable_name = "POPTOTT",
+                       title = "Total Population by Category and City, 2019",
+                       x_label = "Year",
+                       y_label = "Total Population (thousands)",
+                       category_order = "desc",
+                       within_group_order = "desc",
+                       palette = "Zissou1",
+                       line_size = 1.2,
+                       label_size = 3,
+                       title_size = 16,  
+                       save_plot = FALSE,
+                       filename = "Total_Population_Leading-Comparators_2019.png",
+                       width = 10,
+                       height = 8
+                       )
+## GDP
+create_population_plot(subset(oe_india, Year == 2019),
+                       location_var = "Location",
+                       category_var = "mission_categories", 
+                       year_var = "Year", 
+                       variable_name = "GDPTOTUSC",
+                       title = "GDP of selected Indian cities, 2019",
+                       x_label = "Year",
+                       y_label = "Real, PPP adjusted (millions)",
+                       category_order = "desc",
+                       within_group_order = "desc",
+                       palette = "Zissou1",
+                       line_size = 1.2,
+                       label_size = 3,
+                       title_size = 16,  
+                       save_plot = FALSE,
+                       filename = "Total_GDP_Leading-Comparators_2019.png",
+                       width = 10,
+                       height = 8
+                      )
+
+## GDP per capita
+create_population_plot(subset(oe_india, Year == 2019),
+                       location_var = "Location",
+                       category_var = "mission_categories", 
+                       year_var = "Year", 
+                       variable_name = "GDP_per_capita_PPP",
+                       title = "GDP per capita of selected Indian cities, 2019",
+                       x_label = "Year",
+                       y_label = "Real, PPP adjusted (millions)",
+                       category_order = "desc",
+                       within_group_order = "desc",
+                       palette = "Zissou1",
+                       line_size = 1.2,
+                       label_size = 3,
+                       title_size = 16,  
+                       save_plot = FALSE,
+                       filename = "GDP_per_capita_Leading-Comparators_2019.png",
+                       width = 10,
+                       height = 8
+                      )
+
+## GDP growth
+growth_rates_comparators <- oe_comparators %>% 
+  dplyr::filter(Year %in% c(2001, 2019)) %>%
+  group_by(Location) %>%
+  mutate(GDP_growth = if_else(Year == 2019,
+                              (GDPTOTUSC[Year == 2019] - GDPTOTUSC[Year == 2001]) / GDPTOTUSC[Year == 2001],
+                              NA_real_)) %>%  # Only created in Location[Year == 2019]
+  dplyr::filter(Year == c(2001, 2019)) %>%
+  dplyr::select(Location, Year, GDP_growth)
+
+# Find in which Year GDPTOTUSC has the least NA, before 2019
+# oe_comparators %>% 
+#   filter(Year < 2019) %>% 
+#   filter(mission_categories != " ") %>% 
+#   group_by(Year) %>% 
+#   summarize(
+#     na_count = sum(is.na(GDPTOTUSC)),
+#     total_rows = n(),
+#     percent_complete = (1 - na_count/total_rows) * 100
+#   ) %>% 
+#   arrange(na_count) %>% 
+#   View() # 2001, only 1 missing, changing this in growth_rates calculation
+
+
+oe_comparators <- oe_comparators %>%
+  left_join(growth_rates_comparators, by = c("Location", "Year"))
+
+create_population_plot(subset(oe_india, Year == 2019),
+                       location_var = "Location",
+                       category_var = "mission_categories", 
+                       year_var = "Year", 
+                       variable_name = "GDP_growth",
+                       title = "GDP growth rate by selected Indian cities, 2001-2019",
+                       x_label = "Year",
+                       y_label = "Percentage change between 2001-2019",
+                       category_order = "desc",
+                       within_group_order = "desc",
+                       palette = "Zissou1",
+                       line_size = 1.2,
+                       label_size = 3,
+                       title_size = 16,  
+                       save_plot = FALSE,
+                       filename = "GDP_growth_Leading-Comparators_2001-2019.png",
+                       width = 10,
+                       height = 8
+)
+
+# Leading cities and comparators plots
+# # # # # # # # # # # # # # # # # # # # # # # 
+cities_list <- list(
+  Leading_cities = c("Delhi", "Chennai", "Bengaluru", "Ahmedabad", "Mumbai"),
+  Comparators = c("Guangzhou, Guangdong", "Bangkok", "Ahmedabad", "Shanghai", "Hyderabad (India)", "Monterrey")
+)
+
+oe_comparators <-
+  add_group_category(oe_comparators, 
+                     categories = cities_list,
+                     var_col = "Location",
+                     new_col = "cities_list",
+                     warn_unmapped = TRUE)
+
+
+
