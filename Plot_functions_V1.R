@@ -200,10 +200,12 @@ save_plot <- function(plot, filename, width = 12, height = 8) {
 }
 
 ## Generic bar charts comparing cities
-#' Generate a bar plot for any categorical variable
+#' Generate a visually enhanced bar plot
 #' @param data Dataframe containing the data
-#' @param x_var Name of the categorical variable for x-axis (e.g., "Location", "Year")
+#' @param x_var Name of the categorical or year variable for x-axis
 #' @param y_var Name of the numeric variable to plot
+#' @param orientation Direction of the bars ("vertical" or "horizontal")
+#' @param sort_bars Whether to sort bars ("descending", "ascending", or "none")
 #' @param x_lab Optional custom x-axis label (defaults to x_var)
 #' @param y_lab Optional custom y-axis label (defaults to y_var)
 #' @param title Optional custom title for the plot
@@ -213,10 +215,15 @@ save_plot <- function(plot, filename, width = 12, height = 8) {
 #' @param source_text Text to display as source (default: NULL)
 #' @param source_size Font size for source text (default: 8)
 #' @param rotate_x_labels Logical, whether to rotate x-axis labels (default: TRUE)
+#' @param label_size Size of value labels (default: 3)
+#' @param bar_fill Fill color for bars (default: NULL, uses custom gradient)
+#' @param bar_alpha Transparency of bars (default: 0.9)
 #' @return A ggplot object
 generate_bar_plot <- function(data, 
                               x_var,
                               y_var,
+                              orientation = "vertical",
+                              sort_bars = "descending",
                               x_lab = NULL,
                               y_lab = NULL,
                               title = NULL,
@@ -225,14 +232,19 @@ generate_bar_plot <- function(data,
                               value_format = scales::comma,
                               source_text = NULL,
                               source_size = 8,
-                              rotate_x_labels = TRUE) {
+                              rotate_x_labels = TRUE,
+                              label_size = 3,
+                              bar_fill = NULL,
+                              bar_alpha = 0.9) {
   
-  # Input validation
+  # Validation of inputs 
   if (!is.data.frame(data)) {
     stop("Input 'data' must be a data frame")
   }
   
-  # Check if variables exist
+  orientation <- match.arg(orientation, c("vertical", "horizontal"))
+  sort_bars <- match.arg(sort_bars, c("descending", "ascending", "none"))
+  
   if (!x_var %in% names(data)) {
     stop(sprintf("Column '%s' not found in the data frame. Available columns are: %s", 
                  x_var, paste(names(data), collapse = ", ")))
@@ -243,64 +255,132 @@ generate_bar_plot <- function(data,
                  y_var, paste(names(data), collapse = ", ")))
   }
   
-  # Set default labels if not provided
+  # Create a copy of the data
+  plot_data <- data
+  
+  # Determine if x_var contains years
+  is_year <- all(!is.na(suppressWarnings(as.numeric(as.character(unique(plot_data[[x_var]]))))))
+  
+  # Handle sorting
+  if (sort_bars != "none" && !is_year) {
+    sorted_data <- plot_data[order(plot_data[[y_var]], 
+                                   decreasing = sort_bars == "descending"), ]
+    plot_data[[x_var]] <- factor(plot_data[[x_var]], 
+                                 levels = unique(sorted_data[[x_var]]))
+  } else if (is_year) {
+    plot_data[[x_var]] <- factor(plot_data[[x_var]], 
+                                 levels = sort(unique(plot_data[[x_var]])))
+  }
+  
+  # Set default labels
   if (is.null(x_lab)) x_lab <- x_var
   if (is.null(y_lab)) y_lab <- y_var
   
-  # Set default title if not provided
+  # Set default title
   if (is.null(title)) {
-    title <- paste(y_var, "by", x_var)
+    if (is_year) {
+      if (length(unique(plot_data[[x_var]])) == 1) {
+        title <- paste(y_var, "in", unique(plot_data[[x_var]]))
+      } else {
+        title <- paste(y_var, "Trend")
+      }
+    } else {
+      title <- paste(y_var, "by", x_var)
+    }
   }
   
-  # Calculate plot height based on whether source is present
-  plot_margin <- if (!is.null(source_text)) {
-    margin(t = 20, r = 20, b = 40, l = 20)  # Extra bottom margin for source
-  } else {
-    margin(20, 20, 20, 20)
+  # Enhanced theme with better spacing and aesthetics
+  enhanced_theme <- create_standard_theme() +
+    theme(
+      plot.margin = margin(t = 20, r = 60, b = 40, l = 20),
+      panel.grid.major = element_line(color = "gray95", linewidth = 0.3),
+      panel.grid.minor = element_blank(),
+      axis.line = element_line(color = "gray30", linewidth = 0.5),
+      plot.background = element_rect(fill = "white", color = NA),
+      panel.background = element_rect(fill = "white", color = NA),
+      plot.title = element_text(size = 16, face = "bold", margin = margin(b = 15)),
+      plot.subtitle = element_text(size = 12, margin = margin(b = 10)),
+      axis.title = element_text(size = 11, face = "bold"),
+      axis.text = element_text(size = 10)
+    )
+  
+  # Create gradient colors if no fill specified
+  if (is.null(bar_fill)) {
+    n_bars <- length(unique(plot_data[[x_var]]))
+    bar_fill <- colorRampPalette(c("#2C3E50", "#3498DB"))(n_bars)
   }
   
-  # Create the base plot using modern aes() syntax
-  p <- ggplot(data) +
-    aes(x = .data[[x_var]], y = .data[[y_var]]) +
-    geom_bar(stat = "identity", 
-             fill = get_standard_colors(1),
-             alpha = 0.8,
-             width = 0.7) +
-    create_standard_theme()
-  
-  # Adjust x-axis label rotation if requested
-  if (rotate_x_labels) {
-    p <- p + 
+  if (orientation == "horizontal") {
+    p <- ggplot(plot_data) +
+      aes(y = .data[[x_var]], x = .data[[y_var]], fill = .data[[x_var]]) +
+      geom_bar(stat = "identity", 
+               width = 0.7,
+               alpha = bar_alpha) +
+      enhanced_theme +
       theme(
-        axis.text.x = element_text(angle = 45, hjust = 1)
+        axis.text.y = element_text(angle = 0, hjust = 1),
+        panel.grid.major.y = element_blank(),
+        legend.position = "none"
       )
+    
+    # Add value labels
+    if (show_values) {
+      p <- p + 
+        geom_text(
+          aes(label = value_format(.data[[y_var]])),
+          hjust = -0.2,
+          size = label_size,
+          fontface = "bold"
+        )
+    }
+    
+    # Expand x-axis for labels
+    p <- p + scale_x_continuous(
+      labels = value_format,
+      expand = expansion(mult = c(0.05, 0.15))
+    )
+    
   } else {
-    p <- p + 
-      theme(
-        axis.text.x = element_text(angle = 0, hjust = 0.5)
-      )
+    p <- ggplot(plot_data) +
+      aes(x = .data[[x_var]], y = .data[[y_var]], fill = .data[[x_var]]) +
+      geom_bar(stat = "identity", 
+               width = 0.7,
+               alpha = bar_alpha) +
+      enhanced_theme +
+      theme(legend.position = "none")
+    
+    # Add value labels
+    if (show_values) {
+      p <- p + 
+        geom_text(
+          aes(label = value_format(.data[[y_var]])),
+          vjust = -0.5,
+          size = label_size,
+          fontface = "bold"
+        )
+    }
+    
+    # Expand y-axis for labels
+    p <- p + scale_y_continuous(
+      labels = value_format,
+      expand = expansion(mult = c(0.05, 0.15))
+    )
+    
+    if (rotate_x_labels && !is_year) {
+      p <- p + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+    }
   }
   
-  # Add remaining theme elements and labels
-  p <- p +
-    theme(plot.margin = plot_margin) +
-    labs(title = title,
-         subtitle = subtitle,
-         x = x_lab,
-         y = y_lab)
+  # Add gradient fill scale
+  p <- p + scale_fill_manual(values = bar_fill)
   
-  # Add value labels if requested
-  if (show_values) {
-    p <- p + 
-      geom_text(
-        aes(label = value_format(.data[[y_var]])),
-        vjust = -0.5,
-        size = 3
-      )
-  }
-  
-  # Scale y-axis using comma format
-  p <- p + scale_y_continuous(labels = value_format)
+  # Add labels and titles
+  p <- p + labs(
+    title = title,
+    subtitle = subtitle,
+    x = if(orientation == "horizontal") y_lab else x_lab,
+    y = if(orientation == "horizontal") x_lab else y_lab
+  )
   
   # Add source if provided
   if (!is.null(source_text)) {
@@ -310,77 +390,20 @@ generate_bar_plot <- function(data,
         plot.caption = element_text(
           size = source_size,
           hjust = 0,
-          margin = margin(t = 20)
+          margin = margin(t = 20),
+          color = "gray30"
         )
       )
   }
   
+  # Add subtle border shadow effect using annotation
+  p <- p + 
+    annotate("rect", 
+             xmin = -Inf, xmax = Inf, 
+             ymin = -Inf, ymax = Inf,
+             color = "gray90",
+             linewidth = 0.5,
+             fill = NA)
+  
   return(p)
 }
-
-#' Save a plot to a specified directory
-#' @param plot ggplot object to save
-#' @param filename Name of the file to save (including extension)
-#' @param path Directory path where the plot should be saved (default: NULL)
-#' @param width Width of the plot in inches (default: 12)
-#' @param height Height of the plot in inches (default: 8)
-#' @param create_dir Logical, whether to create directory if it doesn't exist (default: TRUE)
-#' @return None (saves plot to file)
-save_plot <- function(plot, 
-                      filename, 
-                      path = NULL,
-                      width = 12, 
-                      height = 8,
-                      create_dir = TRUE) {
-  
-  # If no path is provided, use the default "Figures" directory
-  if (is.null(path)) {
-    path <- "Figures"
-  }
-  
-  # Convert to absolute path if relative path is provided
-  full_path <- here::here(path)
-  
-  # Create directory if it doesn't exist and create_dir is TRUE
-  if (!dir.exists(full_path)) {
-    if (create_dir) {
-      dir.create(full_path, recursive = TRUE)
-      message(sprintf("Created directory: %s", full_path))
-    } else {
-      stop(sprintf("Directory does not exist: %s", full_path))
-    }
-  }
-  
-  # Construct full file path
-  file_path <- file.path(full_path, filename)
-  
-  # Save the plot
-  ggsave(
-    filename = file_path,
-    plot = plot,
-    width = width,
-    height = height,
-    dpi = 300
-  )
-  
-  # Confirm save location
-  message(sprintf("Plot saved to: %s", file_path))
-}
-
-# Example usage:
-# 
-# # By Location
-# location_plot <- generate_bar_plot(
-#   data = your_data,
-#   x_var = "Location",
-#   y_var = "Sales",
-#   title = "Sales by Location"
-# )
-#
-# # By Year
-# year_plot <- generate_bar_plot(
-#   data = your_data,
-#   x_var = "Year",
-#   y_var = "Revenue",
-#   title = "Annual Revenue"
-# )

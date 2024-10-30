@@ -43,41 +43,132 @@ oe_india %>% distinct(.$Location) %>% View() #72 (not considering national
 # 10 charts (or however many cities and comparators we get) , stacked plot, change in GVA, 2000-2019
 
 # General comparisson charts
-## Population
+
 oe_india <- oe_india %>% 
   mutate(POPTOTT = as.numeric(POPTOTT)) %>% 
+  mutate(GDPTOTUSC = as.numeric(GDPTOTUSC)) %>% 
+  mutate(GDP_per_capita_PPP = GDPTOTPPPC / POPTOTT) %>%
   filter(Location != Country)
-  
-generate_bar_plot(
-  data = oe_india,
-  years = "2019",
-  variable_name = "POPTOTT",
-  title = "Total population selected cities in India",
-  subtitle = "2019",
-  source_text = "Source: Oxford City Dabase, 2022",
-  source_size = 8
-  ) 
 
-generate_bar_plot(oe_india, 
+
+## Population
+  
+p01 <- generate_bar_plot(subset(oe_india, Year == 2019), 
          x_var = "Location",
          y_var = "POPTOTT",
          x_lab = NULL,
-         y_lab = "Population (thousands)",
+         y_lab = "Population (millions)",
+         orientation = "horizontal",
+         sort_bars = "ascending",
          title = "Population of selected Indian cities, 2019",
-         subtitle = NULL,
+         subtitle = "(millions)",
          show_values = TRUE,
-         value_format = scales::unit_format(
-                                 unit = "k", 
+         value_format = scales::label_number(
+                                 unit = "m", 
                                  scale = 1e-3,
                                  accuracy = 0.1),
          source_text = "Oxford City Database, 2022",
-         source_size = 8,
+         source_size = 10,
          rotate_x_labels = TRUE) 
 
+ggsave(filename = here::here("Output","India", "Total_Population_2019.png"),
+       plot = p01, width = 12, height = 15, dpi = 600)
+
 ## GDP
+p02 <- generate_bar_plot(subset(oe_india, Year == 2019), 
+                         x_var = "Location",
+                         y_var = "GDPTOTUSC",
+                         x_lab = NULL,
+                         y_lab = "GDP (millions)",
+                         orientation = "horizontal",
+                         sort_bars = "ascending",
+                         title = "GDP of selected Indian cities, 2019",
+                         subtitle = "Real, PPP adjusted (millions)",
+                         show_values = TRUE,
+                         value_format = scales::label_number(
+                           unit = "m", 
+                           scale = 1e-3,
+                           accuracy = 0.1),
+                         source_text = "Oxford City Database, 2022",
+                         source_size = 10,
+                         rotate_x_labels = TRUE) 
+
+ggsave(filename = here::here("Output","India", "Total_GDP_2019.png"),
+       plot = p02, width = 12, height = 15, dpi = 600)
 
 ## GDP per capita
+p03 <- generate_bar_plot(subset(oe_india, Year == 2019), 
+                         x_var = "Location",
+                         y_var = "GDP_per_capita_PPP",
+                         x_lab = NULL,
+                         y_lab = "GDP per capita (thousands)",
+                         orientation = "horizontal",
+                         sort_bars = "ascending",
+                         title = "GDP per capita of selected Indian cities, 2019",
+                         subtitle = "Real, PPP adjusted (thousands)",
+                         show_values = TRUE,
+                         value_format = scales::label_number(
+                           unit = "th", 
+                           scale = 1,
+                           accuracy = 0.1),
+                         source_text = "Oxford City Database, 2022",
+                         source_size = 10,
+                         rotate_x_labels = TRUE) 
+
+ggsave(filename = here::here("Output","India", "GDPpc_2019.png"),
+       plot = p03, width = 12, height = 15, dpi = 600)
+
 
 ## GDP growth
+growth_rates <- oe_india %>% 
+  dplyr::filter(Year %in% c(2001, 2019)) %>%
+  group_by(Location) %>%
+  mutate(GDP_growth = if_else(Year == 2019,
+                              (GDPTOTUSC[Year == 2019] - GDPTOTUSC[Year == 2001]) / GDPTOTUSC[Year == 2001],
+                              NA_real_)) %>%  # Only created in Location[Year == 2019]
+  dplyr::filter(Year == c(2001, 2019)) %>%
+  dplyr::select(Location, Year, GDP_growth) #%>%
+  # dplyr::select(Location, Year, GDPTOTUSC, GDP_growth) #%>%
+  # 60 out of 72 cities have no data for 2000
+  # filter(Year == 2019 & !is.na(GDPTOTUSC)) %>% 
+  # filter(is.na(GDPTOTUSC)) %>%
+  # View()
+
+# Find in which Year GDPTOTUSC has the least NA, before 2019
+  # oe_india %>%
+  #   filter(Year < 2019) %>%
+  #   group_by(Year) %>%
+  #   summarize(
+  #     na_count = sum(is.na(GDPTOTUSC)),
+  #     total_rows = n(),
+  #     percent_complete = (1 - na_count/total_rows) * 100
+  #   ) %>%
+  #   arrange(na_count) %>% 
+  #   View() # 2001, changing this in growth_rates calculations
+
+oe_india <- oe_india %>%
+  left_join(growth_rates, by = c("Location", "Year"))
+  
+p04 <- generate_bar_plot(subset(oe_india, Year == 2019), 
+                         x_var = "Location",
+                         y_var = "GDP_growth",
+                         x_lab = NULL,
+                         y_lab = "GDP growth rate",
+                         orientation = "horizontal",
+                         sort_bars = "ascending",
+                         title = "GDP growth rate by selected Indian cities, 2001-2019",
+                         subtitle = "Percentage change between 2001-2019",
+                         show_values = TRUE,
+                         value_format = scales::label_number(
+                           unit = "%", 
+                           scale = 1,
+                           accuracy = 0.1,
+                           decimal.mark = "."),
+                         source_text = "Oxford City Database, 2022",
+                         source_size = 10,
+                         rotate_x_labels = TRUE) 
+
+ggsave(filename = here::here("Output","India", "GDP_growth_2001-2019.png"),
+       plot = p04, width = 12, height = 15, dpi = 600)
 
 ## Frontier distance
