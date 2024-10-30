@@ -228,7 +228,7 @@ create_population_plot(subset(oe_comparators, Year == 2019),
                        label_size = 3,
                        title_size = 16,  
                        save_plot = TRUE,
-                       filename = "Total_Population_Leading-Comparators_2019.png",
+                       filename = "Total_Population_Mission-Cities_2019.png",
                        width = 10,
                        height = 8
                        )
@@ -251,7 +251,7 @@ create_population_plot(subset(oe_comparators, Year == 2019),
                        label_size = 3,
                        title_size = 16,  
                        save_plot = TRUE,
-                       filename = "Total_GDP_Leading-Comparators_2019.png",
+                       filename = "Total_GDP_Mission-Cities_2019.png",
                        width = 10,
                        height = 8
                       )
@@ -275,7 +275,7 @@ create_population_plot(subset(oe_comparators, Year == 2019),
                        label_size = 3,
                        title_size = 16,  
                        save_plot = TRUE,
-                       filename = "GDP_per_capita_Leading-Comparators_2019.png",
+                       filename = "GDP_per_capita_Mission-Cities_2019.png",
                        width = 10,
                        height = 8
                       )
@@ -325,7 +325,7 @@ create_population_plot(subset(oe_comparators, Year == 2019),
                        label_size = 3,
                        title_size = 16,  
                        save_plot = TRUE,
-                       filename = "GDP_growth_Leading-Comparators_2001-2019.png",
+                       filename = "GDP_growth_Mission-Cities_2001-2019.png",
                        width = 10,
                        height = 8
 )
@@ -347,7 +347,299 @@ oe_comparators2 <-
                      categories = cities_list,
                      var_col = "Location",
                      new_col = "cities_list",
-                     warn_unmapped = TRUE)
+                     warn_unmapped = TRUE)%>% 
+  dplyr::filter(cities_list != " ")
+
+
+## Population
+create_population_plot(subset(oe_comparators2, Year == 2019),
+                       location_var = "Location",
+                       category_var = "cities_list", 
+                       year_var = "Year", 
+                       variable_name = "POPTOTT",
+                       title = "Total Population by Leading and Comparators Cities, 2019",
+                       subtitle = "Total population in thousands",
+                       source_text = "Oxford City Database, 2022",  
+                       source_size = 8,     
+                       x_label = "Year",
+                       y_label = "Total Population (thousands)",
+                       category_order = "desc",
+                       within_group_order = "desc",
+                       palette = "Zissou1",
+                       line_size = 1.2,
+                       label_size = 3,
+                       title_size = 16,  
+                       save_plot = TRUE,
+                       filename = "Total_Population_Leading-Comparators_2019.png",
+                       width = 10,
+                       height = 8
+)
+## GDP
+create_population_plot(subset(oe_comparators2, Year == 2019),
+                       location_var = "Location",
+                       category_var = "cities_list", 
+                       year_var = "Year", 
+                       variable_name = "GDPTOTUSC",
+                       title = "GDP by Leading and Comparators Cities, 2019",
+                       subtitle = NULL,
+                       source_text = "Oxford City Database, 2022",  
+                       source_size = 8,    
+                       x_label = "Year",
+                       y_label = "Real, PPP adjusted (millions)",
+                       category_order = "desc",
+                       within_group_order = "desc",
+                       palette = "Zissou1",
+                       line_size = 1.2,
+                       label_size = 3,
+                       title_size = 16,  
+                       save_plot = TRUE,
+                       filename = "Total_GDP_Leading-Comparators_2019.png",
+                       width = 10,
+                       height = 8
+)
+
+## GDP per capita
+create_population_plot(subset(oe_comparators2, Year == 2019),
+                       location_var = "Location",
+                       category_var = "cities_list", 
+                       year_var = "Year", 
+                       variable_name = "GDP_per_capita_PPP",
+                       title = "GDP per capita by Leading and Comparators Cities, 2019",
+                       subtitle = NULL,
+                       source_text = "Oxford City Database, 2022",  
+                       source_size = 8,    
+                       x_label = "Year",
+                       y_label = "Real, PPP adjusted (thousands)",
+                       category_order = "desc",
+                       within_group_order = "desc",
+                       palette = "Zissou1",
+                       line_size = 1.2,
+                       label_size = 3,
+                       title_size = 16,  
+                       save_plot = TRUE,
+                       filename = "GDP_per_capita_Leading-Comparators_2019.png",
+                       width = 10,
+                       height = 8
+)
+
+## GDP growth
+growth_rates_comparators2 <- oe_comparators2 %>% 
+  dplyr::filter(Year %in% c(2001, 2019)) %>%
+  group_by(Location) %>%
+  mutate(GDP_growth = if_else(Year == 2019,
+                              (GDPTOTUSC[Year == 2019] - GDPTOTUSC[Year == 2001]) / GDPTOTUSC[Year == 2001],
+                              NA_real_)) %>%  # Only created in Location[Year == 2019]
+  dplyr::filter(Year == c(2001, 2019)) %>%
+  dplyr::select(Location, Year, GDP_growth)
+
+# Find in which Year GDPTOTUSC has the least NA, before 2019
+# oe_comparators2 %>%
+#   filter(Year < 2019) %>%
+#   filter(cities_list != " ") %>%
+#   group_by(Year) %>%
+#   summarize(
+#     na_count = sum(is.na(GDPTOTUSC)),
+#     total_rows = n(),
+#     percent_complete = (1 - na_count/total_rows) * 100
+#   ) %>%
+#   arrange(na_count) %>%
+#   View() # 2001, only 1 missing, changing this in growth_rates calculation
+
+
+oe_comparators2 <- oe_comparators2 %>%
+  left_join(growth_rates_comparators2, by = c("Location", "Year"))
+
+create_population_plot(subset(oe_comparators2, Year == 2019),
+                       location_var = "Location",
+                       category_var = "cities_list", 
+                       year_var = "Year", 
+                       variable_name = "GDP_growth",
+                       title = "GDP growth rate by Leading and Comparators Cities, 2001-2019",
+                       subtitle = "Total population in thousands",
+                       source_text = "Oxford City Database, 2022",  
+                       source_size = 8,    
+                       x_label = "Year",
+                       y_label = "Percentage change between 2001-2019",
+                       category_order = "desc",
+                       within_group_order = "desc",
+                       palette = "Zissou1",
+                       line_size = 1.2,
+                       label_size = 3,
+                       title_size = 16,  
+                       save_plot = TRUE,
+                       filename = "GDP_growth_Leading-Comparators_2001-2019.png",
+                       width = 10,
+                       height = 8
+)
+
+## Structure of GVA
+oe_comparators2 <- oe_comparators2 %>%
+  mutate(GVATOTPPPC = as.numeric(GVATOTPPPC),
+         GVAGIR_UPPPC = as.numeric(GVAGIR_UPPPC),
+         GVAAPPPC = as.numeric(GVAAPPPC),
+         GVAK_NPPPC = as.numeric(GVAK_NPPPC),
+         GVAB_FPPPC = as.numeric(GVAB_FPPPC),
+         GVAO_QPPPC = as.numeric(GVAO_QPPPC),
+         GVAHJPPPC = as.numeric(GVAHJPPPC),
+  ) %>%
+  mutate(Agriculture_GVA_Pct = GVAAPPPC / GVATOTPPPC
+         , Consumer_services_GVA_Pct = GVAGIR_UPPPC / GVATOTPPPC
+         , Financial_business_services_GVA_Pct = GVAK_NPPPC / GVATOTPPPC
+         , Industry_GVA_Pct = GVAB_FPPPC / GVATOTPPPC          
+         , Public_services_GVA_Pct =  GVAO_QPPPC / GVATOTPPPC 
+         , Transport_Information_Communic_Services_GVA_Pct =  GVAHJPPPC / GVATOTPPPC
+  ) # Decimal format
+
+# Find in which Year sector vars have the least NA, before 2019
+# oe_comparators2 %>%
+#   filter(Year < 2020) %>%
+#   filter(cities_list != " ") %>%
+#   group_by(Year) %>%
+#   summarize(across(ends_with("GVA_Pct"), 
+#                    ~sum(is.na(.)), 
+#                    .names = "{.col}_NA"),
+#             total_rows = n()) %>%
+#   arrange(Year) %>% 
+#   View()
+
+
+
+columns_to_pivot <- c("Agriculture_GVA_Pct", "Consumer_services_GVA_Pct",
+                      "Financial_business_services_GVA_Pct", "Industry_GVA_Pct",
+                      "Public_services_GVA_Pct", "Transport_Information_Communic_Services_GVA_Pct")
+
+# Check that percentage columns sum to 100% for each location and year
+# pie_data_check  <- oe_comparators2 %>%
+#   pivot_longer(cols = all_of(columns_to_pivot), names_to = "Sector", values_to = "Percentage") %>%
+#   group_by(Location, Year) %>%
+#   mutate(Total = sum(Percentage)) %>%
+#   filter(abs(Total - 100) > 1) %>% 
+#   dplyr::select(Year, Location, Sector, Percentage, Total) %>%
+# # Filter for locations/years where total isn't within 0.1% of 100%
+#   View()
+
+# Check number of columns per Location and Year
+# pie_data_check <- oe_comparators2 %>%
+#   pivot_longer(cols = all_of(columns_to_pivot), names_to = "Sector", values_to = "Percentage") %>%
+#   group_by(Location, Year) %>%
+#   summarize(num_cols = n_distinct(Sector)) %>% 
+#   filter(num_cols != 6) %>% 
+#   View()
+
+# Only 2019
+# Filter data for 2019
+pie_data <- oe_comparators2 %>%
+  pivot_longer(cols = all_of(columns_to_pivot), names_to = "Sector", values_to = "Percentage") %>% 
+  filter(Year == 2019)
+
+# Ensure percentages sum to 100 for each location
+pie_data <- pie_data %>%
+  group_by(Location) %>%
+  mutate(Total = sum(Percentage)) %>%
+  mutate(Percentage = Percentage / Total * 100) %>%
+  ungroup() 
+
+# Create a single plot with all locations
+p05  <- ggplot(pie_data, aes(x = Location, y = Percentage, fill = Sector)) +
+  geom_bar(stat = "identity", position = "stack") +
+  scale_fill_manual(values = c(wes_palette("Zissou1", n = length(unique(pie_data$Sector)), type = "continuous"), "#D3D3D3")) +
+  scale_y_continuous(labels = scales::percent_format(scale = 1), 
+                     breaks = seq(0, 100, 20)) +
+  facet_wrap(~cities_list, scales = "free_x", ncol = 1) +
+  labs(title = "GVA Contribution by Leading and Comparators Cities, 2019",
+       x = NULL,
+       y = "Percentage",
+       fill = "Sector") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16, face = "bold"),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+    axis.text.y = element_text(size = 10),
+    legend.position = "right",
+    legend.text = element_text(size = 8),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank(),
+    strip.text = element_text(size = 12, face = "bold")
+  ) +
+  geom_text(aes(label = ifelse(Percentage >= 5, paste0(round(Percentage, 1), "%"), "")), 
+            position = position_stack(vjust = 0.5), 
+            size = 3, color = "white")
+
+# Add percentage labels
+p05  <- p05  + geom_text(aes(label = ifelse(Percentage >= 5, paste0(round(Percentage, 1), "%"), "")), 
+                     position = position_stack(vjust = 0.5), 
+                     size = 3, color = "white")
+
+# Save the plot
+ggsave(
+  filename = here::here("Output", "India", "GVA_Sector_Leading-Comparators_2019.png"), 
+  plot = p05, 
+  width = 15,
+  height = 10,
+  dpi = 600
+)
+
+# For each city, for 2001-2019
+pie_data2 <- oe_comparators2 %>%
+  pivot_longer(cols = all_of(columns_to_pivot), names_to = "Sector", values_to = "Percentage") %>% 
+  filter(between(Year, 2001, 2019))
+
+# Get unique locations
+locations <- unique(pie_data2$Location)
+
+# Create a plot for each location
+for (loc in locations) {
+  # Filter data for the current location
+  loc_data <- pie_data2 %>% filter(Location == loc) %>%  mutate(Year = as.numeric(Year))
+  
+  # Get start and end years
+  start_year <- min(loc_data$Year)
+  end_year <- max(loc_data$Year)
+  
+  # Prepare label data
+  label_data <- loc_data %>%
+    group_by(Year) %>%
+    mutate(
+      pos = cumsum(Percentage) - 0.5 * Percentage,
+      perc = scales::percent(Percentage, accuracy = 0.1)
+    ) %>%
+    ungroup()
+  
+  # Create the plot
+  p06 <- ggplot(loc_data, aes(x = Year, y = Percentage, fill = Sector)) +
+    geom_area(position = "fill") +
+    scale_fill_manual(values = c(wes_palette("Zissou1", n = length(unique(pie_data2$Sector)), type = "continuous"), "#D3D3D3")) +
+    labs(title = paste("GVA Contribution by Sector in", loc, "(2011-2019)"),
+         x = "Year",
+         y = "Percentage",
+         fill = "Sector") +
+    theme_minimal() +
+    theme(
+      plot.title = element_text(size = 14, face = "bold"),
+      axis.text.x = element_text(angle = 45, hjust = 1, size = 8),
+      legend.position = "bottom",
+      legend.title = element_blank()
+    ) +
+    scale_y_continuous(labels = scales::percent_format()) +
+    scale_x_continuous(breaks = unique(loc_data$Year)) +
+    geom_text(data = label_data %>% filter(Year == start_year | Year == end_year),
+              aes(x = Year, y = pos, label = perc, group = Sector,
+                  hjust = ifelse(Year == start_year, 1, 0)),
+              size = 3) +
+    geom_line(data = label_data %>% filter(Year == start_year | Year == end_year),
+              aes(x = Year, y = pos, group = Sector),
+              linetype = "dotted", color = "gray50")
+  
+  # Save the plot with location-specific filename
+  ggsave(
+    filename = here::here("Output","India", paste0("GVA_Sector_Leading-Comparators_2001-2019_", gsub(" ", "_", loc), ".png")), 
+    plot = p06, 
+    width = 12,
+    height = 8,
+    dpi = 600
+  )
+  
+}
 
 
 

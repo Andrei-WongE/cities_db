@@ -175,7 +175,8 @@ create_population_plot <- function(data,
     ggsave(filename = here("Output", "India", filename), 
            plot = p, 
            width = width, 
-           height = height)
+           height = height
+           dpi = 600)
   }
   
   return(p)
