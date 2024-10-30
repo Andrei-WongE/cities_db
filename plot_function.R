@@ -28,34 +28,29 @@ library(wesanderson)
 library(ggrepel)
 library(here)
 
-library(ggplot2)
-library(dplyr)
-library(scales)
-library(wesanderson)
-library(ggrepel)
-library(here)
-
 create_population_plot <- function(data, 
                                    location_var = "Location",
                                    category_var = "category_var", 
                                    year_var = "Year", 
                                    variable_name = "var_name",
+                                   horizontal = TRUE,
                                    value_format = scales::label_number(
-                                     unit = "m", 
-                                     scale = 1e-3,
-                                     accuracy = 0.1),
+                                     scale = 100,
+                                     accuracy = 0.1,
+                                     decimal.mark = ".",
+                                     suffix = "%"),
                                    title = "Population by Location within Categories",
                                    subtitle = NULL,
                                    source_text = NULL,
                                    source_size = 8,
-                                   x_label = "Categories",
-                                   y_label = "Population (thousands)",
+                                   x_label = ifelse(horizontal, "Population (thousands)", "Categories"),
+                                   y_label = ifelse(horizontal, "Categories", "Population (thousands)"),
                                    palette = "Zissou1",
                                    line_size = 1.2,
                                    label_size = 3,
                                    title_size = 16,
-                                   category_order = c("asc", "desc", "by_name")[3],
-                                   within_group_order = "by_name",
+                                   category_order = c("asc", "desc", "by_name")[1],
+                                   within_group_order = "asc",
                                    save_plot = FALSE,
                                    filename = "TOT_POP.png",
                                    width = 10,
@@ -82,7 +77,6 @@ create_population_plot <- function(data,
       !!sym(year_var) := as.numeric(!!sym(year_var))
     )
   
-  # Sort locations alphabetically and assign fixed colors
   unique_locations <- sort(unique(data[[location_var]]))
   n_locations <- length(unique_locations)
   location_colors <- setNames(
@@ -90,7 +84,6 @@ create_population_plot <- function(data,
     unique_locations
   )
   
-  # Create location-category mapping with fixed colors
   data <- data %>%
     mutate(
       location_with_category = paste0(!!sym(location_var), " (", !!sym(category_var), ")"),
@@ -127,19 +120,38 @@ create_population_plot <- function(data,
     data$location_with_category <- factor(data$location_with_category,
                                           levels = unique(data$location_with_category))
     
-    p <- ggplot(data, 
-                aes(x = !!sym(category_var),
-                    y = !!sym(variable_name),
-                    fill = !!sym(location_var))) +
-      geom_bar(stat = "identity",
-               position = position_dodge(width = 0.9),
-               width = 0.8) +
-      scale_fill_manual(values = location_colors,
-                        name = "Location") +
-      geom_text(aes(label = value_format(!!sym(variable_name))),
-                position = position_dodge(width = 0.9),
-                vjust = -0.5,
-                size = label_size)
+    max_value <- max(data[[variable_name]], na.rm = TRUE)
+    limit_max <- max_value * 1.2
+    
+    if (horizontal) {
+      p <- ggplot(data, 
+                  aes(y = !!sym(category_var),
+                      x = !!sym(variable_name),
+                      fill = !!sym(location_var))) +
+        geom_bar(stat = "identity",
+                 position = position_dodge(width = 0.9),
+                 width = 0.8) +
+        coord_cartesian(xlim = c(0, limit_max)) +
+        geom_text(aes(label = value_format(!!sym(variable_name))),
+                  position = position_dodge(width = 0.9),
+                  hjust = -0.25,
+                  size = label_size)
+    } else {
+      p <- ggplot(data, 
+                  aes(x = !!sym(category_var),
+                      y = !!sym(variable_name),
+                      fill = !!sym(location_var))) +
+        geom_bar(stat = "identity",
+                 position = position_dodge(width = 0.9),
+                 width = 0.8) +
+        coord_cartesian(ylim = c(0, limit_max)) +
+        geom_text(aes(label = value_format(!!sym(variable_name))),
+                  position = position_dodge(width = 0.9),
+                  vjust = -0.25,
+                  size = label_size)
+    }
+    
+    p <- p + scale_fill_manual(values = location_colors, name = "Location")
     
   } else {
     p <- ggplot(data, 
@@ -169,7 +181,8 @@ create_population_plot <- function(data,
       plot.subtitle = element_text(hjust = 0.5),
       axis.title.x = element_text(face = "bold"),
       axis.title.y = element_text(face = "bold"),
-      axis.text.x = element_text(angle = 45, hjust = 1),
+      axis.text.x = if(!horizontal && is_single_year) element_text(angle = 45, hjust = 1) else element_text(),
+      axis.text.y = if(horizontal && is_single_year) element_text(hjust = 1) else element_text(),
       plot.margin = margin(t = 20, r = 20, b = 30, l = 20),
       legend.position = "right",
       legend.title = element_text(face = "bold"),
@@ -178,8 +191,15 @@ create_population_plot <- function(data,
       panel.grid.minor = element_line(color = "gray95"),
       plot.caption = element_text(size = source_size, color = "gray30", hjust = 1)
     ) +
-    scale_y_continuous(labels = value_format,
-                       expand = expansion(mult = c(0, 0.15))) +
+    if(is_single_year) {
+      if(horizontal) {
+        scale_x_continuous(labels = value_format,
+                           expand = expansion(mult = c(0, 0.2)))
+      } else {
+        scale_y_continuous(labels = value_format,
+                           expand = expansion(mult = c(0, 0.2)))
+      }
+    } +
     labs(title = title,
          subtitle = subtitle,
          caption = source_text,
