@@ -200,57 +200,56 @@ save_plot <- function(plot, filename, width = 12, height = 8) {
 }
 
 ## Generic bar charts comparing cities
-#' Generate a bar plot for specified years and variable
+#' Generate a bar plot for any categorical variable
 #' @param data Dataframe containing the data
-#' @param years Single year or vector of years to include in the plot
-#' @param variable_name Name of the variable to plot (column name in data)
+#' @param x_var Name of the categorical variable for x-axis (e.g., "Location", "Year")
+#' @param y_var Name of the numeric variable to plot
+#' @param x_lab Optional custom x-axis label (defaults to x_var)
+#' @param y_lab Optional custom y-axis label (defaults to y_var)
 #' @param title Optional custom title for the plot
 #' @param subtitle Optional custom subtitle for the plot
-#' @param y_axis_label Optional custom y-axis label
 #' @param show_values Logical, whether to show value labels on bars (default: TRUE)
 #' @param value_format Function to format values (default: comma format)
 #' @param source_text Text to display as source (default: NULL)
 #' @param source_size Font size for source text (default: 8)
+#' @param rotate_x_labels Logical, whether to rotate x-axis labels (default: TRUE)
 #' @return A ggplot object
 generate_bar_plot <- function(data, 
-                              years,
-                              variable_name,
+                              x_var,
+                              y_var,
+                              x_lab = NULL,
+                              y_lab = NULL,
                               title = NULL,
                               subtitle = NULL,
-                              y_axis_label = NULL,
                               show_values = TRUE,
                               value_format = scales::comma,
                               source_text = NULL,
-                              source_size = 8) {
+                              source_size = 8,
+                              rotate_x_labels = TRUE) {
   
-  # Convert single year to vector if necessary
-  years <- unique(as.numeric(years))
-  
-  # Validate years
-  if (length(years) == 0) {
-    stop("No valid years provided")
+  # Input validation
+  if (!is.data.frame(data)) {
+    stop("Input 'data' must be a data frame")
   }
   
-  # Filter data for specified years
-  plot_data <- data[data$year %in% years, ]
-  
-  # Check if we have data
-  if (nrow(plot_data) == 0) {
-    stop("No data found for the specified years")
+  # Check if variables exist
+  if (!x_var %in% names(data)) {
+    stop(sprintf("Column '%s' not found in the data frame. Available columns are: %s", 
+                 x_var, paste(names(data), collapse = ", ")))
   }
+  
+  if (!y_var %in% names(data)) {
+    stop(sprintf("Column '%s' not found in the data frame. Available columns are: %s", 
+                 y_var, paste(names(data), collapse = ", ")))
+  }
+  
+  # Set default labels if not provided
+  if (is.null(x_lab)) x_lab <- x_var
+  if (is.null(y_lab)) y_lab <- y_var
   
   # Set default title if not provided
   if (is.null(title)) {
-    if (length(years) == 1) {
-      title <- paste(variable_name, "in", years)
-    } else {
-      title <- paste("Distribution of", variable_name, "by Year")
-    }
-  }
-  
-  # Set default y-axis label if not provided
-  if (is.null(y_axis_label)) {
-    y_axis_label <- variable_name
+    title <- paste(y_var, "by", x_var)
   }
   
   # Calculate plot height based on whether source is present
@@ -260,20 +259,25 @@ generate_bar_plot <- function(data,
     margin(20, 20, 20, 20)
   }
   
-  # Create the base plot
-  p <- ggplot(plot_data, aes_string(x = "year", y = variable_name)) +
+  # Create the base plot using modern aes() syntax
+  p <- ggplot(data) +
+    aes(x = .data[[x_var]], y = .data[[y_var]]) +
     geom_bar(stat = "identity", 
              fill = get_standard_colors(1),
              alpha = 0.8,
              width = 0.7) +
     create_standard_theme()
   
-  # Adjust x-axis based on number of years
-  if (length(years) == 1) {
+  # Adjust x-axis label rotation if requested
+  if (rotate_x_labels) {
     p <- p + 
       theme(
-        axis.text.x = element_text(angle = 0, hjust = 0.5),  # Center align x-axis label
-        panel.grid.major.x = element_blank()  # Remove vertical grid for single year
+        axis.text.x = element_text(angle = 45, hjust = 1)
+      )
+  } else {
+    p <- p + 
+      theme(
+        axis.text.x = element_text(angle = 0, hjust = 0.5)
       )
   }
   
@@ -282,15 +286,17 @@ generate_bar_plot <- function(data,
     theme(plot.margin = plot_margin) +
     labs(title = title,
          subtitle = subtitle,
-         x = if(length(years) == 1) "" else "Year",  # Remove x-axis label for single year
-         y = y_axis_label)
+         x = x_lab,
+         y = y_lab)
   
   # Add value labels if requested
   if (show_values) {
     p <- p + 
-      geom_text(aes_string(label = paste0("value_format(", variable_name, ")")),
-                vjust = -0.5,
-                size = 3)
+      geom_text(
+        aes(label = value_format(.data[[y_var]])),
+        vjust = -0.5,
+        size = 3
+      )
   }
   
   # Scale y-axis using comma format
@@ -303,8 +309,8 @@ generate_bar_plot <- function(data,
       theme(
         plot.caption = element_text(
           size = source_size,
-          hjust = 0,  # Left align
-          margin = margin(t = 20)  # Add space above source
+          hjust = 0,
+          margin = margin(t = 20)
         )
       )
   }
@@ -361,3 +367,20 @@ save_plot <- function(plot,
   message(sprintf("Plot saved to: %s", file_path))
 }
 
+# Example usage:
+# 
+# # By Location
+# location_plot <- generate_bar_plot(
+#   data = your_data,
+#   x_var = "Location",
+#   y_var = "Sales",
+#   title = "Sales by Location"
+# )
+#
+# # By Year
+# year_plot <- generate_bar_plot(
+#   data = your_data,
+#   x_var = "Year",
+#   y_var = "Revenue",
+#   title = "Annual Revenue"
+# )

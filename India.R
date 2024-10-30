@@ -12,7 +12,7 @@ dir.create("Output/India", showWarnings = FALSE)
 # Filter data for India
 oe_india <- data %>% filter(Country == "India")
 
-oe_india %>% distinct(.$Location) %>% View() #73
+oe_india %>% distinct(.$Location) %>% View() #72 (not considering national
 
 # Plot graphs
 # Cities: All cities in OE.
@@ -45,7 +45,8 @@ oe_india %>% distinct(.$Location) %>% View() #73
 # General comparisson charts
 ## Population
 oe_india <- oe_india %>% 
-  mutate(POPTOTT = as.numeric(POPTOTT))
+  mutate(POPTOTT = as.numeric(POPTOTT)) %>% 
+  filter(Location != Country)
   
 generate_bar_plot(
   data = oe_india,
@@ -54,7 +55,24 @@ generate_bar_plot(
   title = "Total population selected cities in India",
   subtitle = "2019",
   source_text = "Source: Oxford City Dabase, 2022",
-)
+  source_size = 8
+  ) 
+
+generate_bar_plot(oe_india, 
+         x_var = "Location",
+         y_var = "POPTOTT",
+         x_lab = NULL,
+         y_lab = "Population (thousands)",
+         title = "Population of selected Indian cities, 2019",
+         subtitle = NULL,
+         show_values = TRUE,
+         value_format = scales::unit_format(
+                                 unit = "k", 
+                                 scale = 1e-3,
+                                 accuracy = 0.1),
+         source_text = "Oxford City Database, 2022",
+         source_size = 8,
+         rotate_x_labels = TRUE) 
 
 ## GDP
 
