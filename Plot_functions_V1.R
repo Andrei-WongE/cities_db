@@ -222,7 +222,7 @@ save_plot <- function(plot, filename, width = 12, height = 8) {
 generate_bar_plot <- function(data, 
                               x_var,
                               y_var,
-                              orientation = "vertical",
+                              orientation = "horizontal",
                               sort_bars = "descending",
                               x_lab = NULL,
                               y_lab = NULL,

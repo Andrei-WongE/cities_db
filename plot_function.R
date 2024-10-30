@@ -33,7 +33,7 @@ create_population_plot <- function(data,
                                    category_var = "category_var", 
                                    year_var = "Year", 
                                    variable_name = "var_name",
-                                   horizontal = TRUE,
+                                   horizontal = FALSE,
                                    value_format = scales::label_number(
                                      scale = 100,
                                      accuracy = 0.1,
@@ -135,7 +135,9 @@ create_population_plot <- function(data,
         geom_text(aes(label = value_format(!!sym(variable_name))),
                   position = position_dodge(width = 0.9),
                   hjust = -0.25,
-                  size = label_size)
+                  size = label_size) +
+        scale_x_continuous(labels = value_format,
+                           expand = expansion(mult = c(0, 0.2)))
     } else {
       p <- ggplot(data, 
                   aes(x = !!sym(category_var),
@@ -148,7 +150,9 @@ create_population_plot <- function(data,
         geom_text(aes(label = value_format(!!sym(variable_name))),
                   position = position_dodge(width = 0.9),
                   vjust = -0.25,
-                  size = label_size)
+                  size = label_size) +
+        scale_y_continuous(labels = value_format,
+                           expand = expansion(mult = c(0, 0.2)))
     }
     
     p <- p + scale_fill_manual(values = location_colors, name = "Location")
@@ -191,15 +195,6 @@ create_population_plot <- function(data,
       panel.grid.minor = element_line(color = "gray95"),
       plot.caption = element_text(size = source_size, color = "gray30", hjust = 1)
     ) +
-    if(is_single_year) {
-      if(horizontal) {
-        scale_x_continuous(labels = value_format,
-                           expand = expansion(mult = c(0, 0.2)))
-      } else {
-        scale_y_continuous(labels = value_format,
-                           expand = expansion(mult = c(0, 0.2)))
-      }
-    } +
     labs(title = title,
          subtitle = subtitle,
          caption = source_text,
