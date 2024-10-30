@@ -28,16 +28,22 @@ library(wesanderson)
 library(ggrepel)
 library(here)
 
+library(ggplot2)
+library(dplyr)
+library(scales)
+library(wesanderson)
+library(ggrepel)
+library(here)
+
 create_population_plot <- function(data, 
                                    location_var = "Location",
                                    category_var = "category_var", 
                                    year_var = "Year", 
                                    variable_name = "var_name",
                                    value_format = scales::label_number(
-                                     scale = 100,
-                                     accuracy = 0.1,
-                                     decimal.mark = ".",
-                                     suffix = "%"),
+                                     unit = "m", 
+                                     scale = 1e-3,
+                                     accuracy = 0.1),
                                    title = "Population by Location within Categories",
                                    subtitle = NULL,
                                    source_text = NULL,
@@ -55,7 +61,6 @@ create_population_plot <- function(data,
                                    width = 10,
                                    height = 8) {
   
-  # Rest of the function remains exactly the same...
   required_cols <- c(location_var, category_var, year_var, variable_name)
   missing_cols <- setdiff(required_cols, names(data))
   if (length(missing_cols) > 0) {
@@ -77,8 +82,20 @@ create_population_plot <- function(data,
       !!sym(year_var) := as.numeric(!!sym(year_var))
     )
   
+  # Sort locations alphabetically and assign fixed colors
+  unique_locations <- sort(unique(data[[location_var]]))
+  n_locations <- length(unique_locations)
+  location_colors <- setNames(
+    colorRampPalette(wes_palette(palette, type = "continuous"))(n_locations),
+    unique_locations
+  )
+  
+  # Create location-category mapping with fixed colors
   data <- data %>%
-    mutate(location_with_category = paste0(!!sym(location_var), " (", !!sym(category_var), ")"))
+    mutate(
+      location_with_category = paste0(!!sym(location_var), " (", !!sym(category_var), ")"),
+      location_color = location_colors[!!sym(location_var)]
+    )
   
   if (nrow(data) == 0) {
     stop("No valid data remains after removing NA values")
@@ -87,9 +104,6 @@ create_population_plot <- function(data,
   is_single_year <- length(unique(data[[year_var]])) == 1
   
   if (is_single_year) {
-    n_locations <- length(unique(data$location_with_category))
-    location_colors <- colorRampPalette(wes_palette(palette, type = "continuous"))(n_locations)
-    
     if (category_order == "by_name") {
       data <- data %>%
         arrange(
@@ -116,7 +130,7 @@ create_population_plot <- function(data,
     p <- ggplot(data, 
                 aes(x = !!sym(category_var),
                     y = !!sym(variable_name),
-                    fill = location_with_category)) +
+                    fill = !!sym(location_var))) +
       geom_bar(stat = "identity",
                position = position_dodge(width = 0.9),
                width = 0.8) +
@@ -131,11 +145,11 @@ create_population_plot <- function(data,
     p <- ggplot(data, 
                 aes(x = !!sym(year_var),
                     y = !!sym(variable_name),
-                    color = location_with_category,
+                    color = !!sym(location_var),
                     group = location_with_category)) +
       geom_line(linewidth = line_size) +
       geom_point(size = 2) +
-      scale_color_manual(values = wes_palette(palette, n = length(unique(data$location_with_category)), type = "continuous"),
+      scale_color_manual(values = location_colors,
                          name = "Location") +
       scale_x_continuous(breaks = unique(data[[year_var]])) +
       geom_text_repel(data = data %>% 
