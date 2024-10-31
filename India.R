@@ -8,6 +8,8 @@ source(here("Master_variables.R"))
 if(!exists("data")) stop("Data not found")
 
 source("Plot_functions_V1.R")
+source("plot_function.R")
+
 
 # Create output folder
 dir.create("Output/India", showWarnings = FALSE)
@@ -183,7 +185,9 @@ data %>%
   filter(Year %in% c(2001, 2019)) %>%
   group_by(Location) %>%
   reframe(
-    GDP_growth = (GDPTOTUSC[Year == 2019] - GDPTOTUSC[Year == 2001]) / GDPTOTUSC[Year == 2001],
+    mutate(GDP_growth = if_else(Year == 2019,
+                                (GDPTOTUSC[Year == 2019]/GDPTOTUSC[Year == 2001])^(1/18) - 1,  # CAGR formula
+                                NA_real_)),
     POPTOTT = POPTOTT[Year == 2019],
     Country = Country[1]
   ) %>%
@@ -250,13 +254,14 @@ create_population_plot(subset(oe_comparators, Year == 2019),
                        variable_name = "POPTOTT",
                        value_format = scales::label_number(
                          scale = 1,
-                         accuracy = 0.1,
+                         accuracy = NULL,
+                         big.mark = ",",
                          decimal.mark = "."),
                        title = "Total Population by Selected cities and Comparators, 2019",
                        subtitle = "Total population in thousands",
                        source_text = "Oxford City Database, 2022",  
                        source_size = 8,     
-                       x_label = "Year",
+                       x_label = NULL,
                        y_label = "Total Population (thousands)",
                        category_order = "by_name",
                        within_group_order = "by_name",
@@ -270,16 +275,21 @@ create_population_plot(subset(oe_comparators, Year == 2019),
                        height = 8
                        )
 ## GDP
-create_population_plot(subset(oe_comparators, Year == 2019),
+base_plot <- create_population_plot(subset(oe_comparators, Year == 2019),
                        location_var = "Location",
                        category_var = "mission_categories", 
                        year_var = "Year", 
                        variable_name = "GDPTOTUSC",
+                       value_format = scales::label_number(
+                         scale = 1,
+                         accuracy = NULL,
+                         big.mark = ",",
+                         decimal.mark = "."),
                        title = "GDP by Selected cities and Comparators, 2019",
                        subtitle = NULL,
                        source_text = "Oxford City Database, 2022",  
                        source_size = 8,    
-                       x_label = "Year",
+                       x_label = NULL,
                        y_label = "Real, PPP adjusted (millions)",
                        category_order = "by_name",
                        within_group_order = "by_name",
@@ -292,6 +302,71 @@ create_population_plot(subset(oe_comparators, Year == 2019),
                        width = 10,
                        height = 8
                       )
+
+require(patchwork)
+
+# Function to create a broken axis plot
+create_broken_axis_plot <- function(plot, break_low, break_high) {
+  # Extract the data from the original plot
+  plot_data <- layer_data(plot, 1)
+  
+  # Create the bottom portion - with y axis label
+  p1 <- plot + 
+    coord_cartesian(ylim = c(0, break_low)) +
+    # Larger, more visible break symbols for bottom plot
+    annotate("segment", x = c(-0.5, -0.5, -0.5), 
+             xend = c(-0.3, -0.3, -0.3),
+             y = c(break_low - 2000, break_low - 1000, break_low),
+             yend = c(break_low - 1000, break_low, break_low + 1000),
+             linewidth = 1.5) +
+    theme(plot.margin = margin(b = 0, t = 0, l = 50, r = 20),
+          plot.title = element_blank(),
+          plot.subtitle = element_blank(),
+          axis.text.x = element_text(angle = 45, hjust = 1)) # Show x-axis labels
+  
+  # Create the top portion - without y axis label
+  p2 <- plot + 
+    coord_cartesian(ylim = c(break_high, max(plot_data$y) * 1.15)) +
+    # Larger, more visible break symbols for top plot
+    annotate("segment", x = c(-0.5, -0.5, -0.5),
+             xend = c(-0.3, -0.3, -0.3),
+             y = c(break_high - 1000, break_high, break_high + 1000),
+             yend = c(break_high, break_high + 1000, break_high + 2000),
+             linewidth = 1.5) +
+    theme(plot.margin = margin(b = 0, t = 0, l = 30, r = 20),
+          plot.caption = element_blank(),
+          axis.title.y = element_blank(),
+          axis.text.x = element_blank()) # Hide x-axis labels for top plot
+  
+  # Combine the plots with minimal space between them
+  combined_plot <- p2 / p1 + 
+    plot_layout(heights = c(1, 2), guides = "collect") & 
+    theme(plot.margin = margin(t = 20, r = 20, b = 10, l = 50),
+          plot.spacing = unit(0.001, "cm")) # Reduced spacing between plots
+  
+  return(combined_plot)
+}
+# Use the function with your specific break points
+broken_plot <- create_broken_axis_plot(
+  base_plot,
+  break_low = 30000,    # Upper limit of bottom section
+  break_high = 350000   # Lower limit of top section
+)
+# Add final adjustments
+(final_plot <- broken_plot + 
+    plot_annotation(
+      theme = theme(
+        plot.margin = margin(t = 20, r = 20, b = 80, l = 50)
+      )
+    ))
+
+ggsave(
+  filename = here::here("Output","India","Total_GDP_Mission-Cities_2019_break.png"), 
+  plot = final_plot, 
+  width = 12,
+  height = 8,
+  dpi = 600
+)
 
 ## GDP per capita
 create_population_plot(subset(oe_comparators, Year == 2019),
@@ -342,7 +417,7 @@ growth_rates_comparators <- oe_comparators %>%
 #     percent_complete = (1 - na_count/total_rows) * 100
 #   ) %>% 
 #   arrange(na_count) %>% 
-#   View() # 2001, only 1 missing, changing this in growth_rates calculation
+#   View() # 2001, only 1 missing Monterrey, changing this in growth_rates calculation
 
 
 oe_comparators <- oe_comparators %>%
@@ -371,7 +446,7 @@ create_population_plot(subset(oe_comparators, Year == 2019),
                        title_size = 16,
                        category_order = "by_name",
                        within_group_order = "by_name",
-                       save_plot = TRUE,
+                       save_plot = FALSE,
                        filename = "GDP_growth_Mission-Cities_2001-2019.png",
                        width = 10,
                        height = 8
@@ -380,8 +455,8 @@ create_population_plot(subset(oe_comparators, Year == 2019),
 # Leading cities and comparators plots
 # # # # # # # # # # # # # # # # # # # # # # # 
 cities_list <- list(
-  Leading_cities = c("Delhi", "Chennai", "Bengaluru", "Ahmedabad", "Mumbai"),
-  Comparators = c("Guangzhou, Guangdong", "Bangkok", "Ahmedabad", "Shanghai", "Jakarta", "Monterrey")
+  Leading_cities = c("Delhi", "Chennai", "Bengaluru", "Surat", "Mumbai"),
+  Comparators = c("Guangzhou, Guangdong", "Bangkok", "Hyderabad (India)", "Shanghai", "Jakarta", "Monterrey")
 )
 
 oe_comparators2 <- data %>% 
@@ -406,13 +481,14 @@ create_population_plot(subset(oe_comparators2, Year == 2019),
                        variable_name = "POPTOTT",
                        value_format = scales::label_number(
                          scale = 1,
-                         accuracy = 0.1,
+                         accuracy = NULL,
+                         big.mark = ",",
                          decimal.mark = "."),
                        title = "Total Population by Leading and Comparators Cities, 2019",
                        subtitle = "Total population in thousands",
                        source_text = "Oxford City Database, 2022",  
                        source_size = 8,     
-                       x_label = "Year",
+                       x_label = NULL,
                        y_label = "Total Population (thousands)",
                        category_order = "by_name",
                        within_group_order = "by_name",
@@ -433,13 +509,14 @@ create_population_plot(subset(oe_comparators2, Year == 2019),
                        variable_name = "GDPTOTUSC",
                        value_format = scales::label_number(
                          scale = 1,
-                         accuracy = 0.1,
+                         accuracy = NULL,
+                         big.mark = ",",
                          decimal.mark = "."),
                        title = "GDP by Leading and Comparators Cities, 2019",
                        subtitle = NULL,
                        source_text = "Oxford City Database, 2022",  
                        source_size = 8,    
-                       x_label = "Year",
+                       x_label = NULL,
                        y_label = "Real, PPP adjusted (millions)",
                        category_order = "by_name",
                        within_group_order = "by_name",
@@ -462,12 +539,13 @@ create_population_plot(subset(oe_comparators2, Year == 2019),
                        value_format = scales::label_number(
                          scale = 1,
                          accuracy = 0.1,
+                         big.mark = ",",
                          decimal.mark = "."),
                        title = "GDP per capita by Leading and Comparators Cities, 2019",
                        subtitle = NULL,
                        source_text = "Oxford City Database, 2022",  
                        source_size = 8,    
-                       x_label = "Year",
+                       x_label = NULL,
                        y_label = "Real, PPP adjusted (thousands)",
                        category_order = "by_name",
                        within_group_order = "by_name",
@@ -523,7 +601,8 @@ create_population_plot(subset(oe_comparators2, Year == 2019),
                          unit = "%", 
                          scale = 100,
                          accuracy = 0.01,
-                         decimal.mark = "."),
+                         decimal.mark = ".",
+                         suffix = "%"),
                        title = "GDP growth rate by Leading and Comparators Cities, 2001-2019",
                        subtitle = "Compound Average Growth Rate (CAGR)",
                        source_text = "Oxford City Database, 2022",  
@@ -704,7 +783,7 @@ for (loc in locations) {
               aes(x = Year, y = pos, group = Sector),
               linetype = "dotted", color = "gray50")
   
-  # Save the plot with location-specific filename
+  # Save the plot
   ggsave(
     filename = here::here("Output","India", paste0("GVA_Sector_Leading-Comparators_2001-2019_", gsub(" ", "_", loc), ".png")), 
     plot = p06, 
@@ -714,6 +793,7 @@ for (loc in locations) {
   )
   
 }
+
 
 
 

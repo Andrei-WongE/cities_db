@@ -1,3 +1,55 @@
+## ---------------------------
+##
+## Script name: Global cities benchmarking databases
+##
+## Project: Geo WB
+##
+## Purpose of script: Merge db and extract benchmarking indicators
+##
+## Author: Andrei Wong Espejo
+##
+## Date Created: 2024-10-28
+##
+## Email: awonge01@student.bbk.ac.uk
+##
+## ---------------------------
+##
+## Notes: 
+##   
+##
+## ---------------------------
+
+## Load required packages ----
+
+library("pacman")
+library("here")
+library("groundhog")
+
+set.groundhog.folder(here("groundhog_library"))
+groundhog.day = "2024-04-25" #"2020-05-12"
+#Dowloaded fromn https://github.com/CredibilityLab/groundhog
+
+pkgs = c("dplyr", "tidyverse", "janitor", "sf"
+         , "ggplot2","xfun", "remotes", "sp", "spdep"
+         , "foreach", "doParallel", "parallel", "progress"
+         , "doSNOW", "purrr", "patchwork"
+         , "haven", "openxlsx", "MASS", "reticulate"
+         , "future", "furrr", "data.table","leaflet"
+         , "jtools", "tidyr", "ggspatial", "raster"
+         , "prettymapr", "viridis", "labelled"
+         , "writexl", "WDI", "wesanderson", "ggrepel"
+)
+
+groundhog.library(pkgs, groundhog.day
+                  , ignore.deps =  "fs")
+
+#maptools removed fron CRAN      
+
+## Program Set-up ------------
+
+options(scipen = 100, digits = 4) # Prefer non-scientific notation
+sf_use_s2(TRUE) # Use s2 spherical geometry for geographical coordinate operations 
+
 ## Upload data -------
 data <- read_dta(here("data","OE_GC_2021.dta"))
 
