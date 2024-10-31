@@ -247,33 +247,33 @@ oe_comparators <-
   dplyr::filter(mission_categories != " ")
 
 ## Population
-create_population_plot(subset(oe_comparators, Year == 2019),
-                       location_var = "Location",
-                       category_var = "mission_categories", 
-                       year_var = "Year", 
-                       variable_name = "POPTOTT",
-                       value_format = scales::label_number(
-                         scale = 1,
-                         accuracy = NULL,
-                         big.mark = ",",
-                         decimal.mark = "."),
-                       title = "Total Population by Selected cities and Comparators, 2019",
-                       subtitle = "Total population in thousands",
-                       source_text = "Oxford City Database, 2022",  
-                       source_size = 8,     
-                       x_label = NULL,
-                       y_label = "Total Population (thousands)",
-                       category_order = "by_name",
-                       within_group_order = "by_name",
-                       palette = "Zissou1",
-                       line_size = 1.2,
-                       label_size = 3,
-                       title_size = 16,  
-                       save_plot = TRUE,
-                       filename = "Total_Population_Mission-Cities_2019.png",
-                       width = 10,
-                       height = 8
-                       )
+  create_population_plot(subset(oe_comparators, Year == 2019),
+                         location_var = "Location",
+                         category_var = "mission_categories", 
+                         year_var = "Year", 
+                         variable_name = "POPTOTT",
+                         value_format = scales::label_number(
+                           scale = 1,
+                           accuracy = NULL,
+                           big.mark = ",",
+                           decimal.mark = "."),
+                         title = "Total Population by Selected cities and Comparators, 2019",
+                         subtitle = "Total population in thousands",
+                         source_text = "Oxford City Database, 2022",  
+                         source_size = 8,     
+                         x_label = NULL,
+                         y_label = "Total Population (thousands)",
+                         category_order = "as_is",
+                         within_group_order = "as_is",
+                         palette = "Zissou1",
+                         line_size = 1.2,
+                         label_size = 3,
+                         title_size = 16,  
+                         save_plot = TRUE,
+                         filename = "Total_Population_Mission-Cities_2019.png",
+                         width = 10,
+                         height = 8
+                         )
 ## GDP
 base_plot <- create_population_plot(subset(oe_comparators, Year == 2019),
                        location_var = "Location",
@@ -291,8 +291,8 @@ base_plot <- create_population_plot(subset(oe_comparators, Year == 2019),
                        source_size = 8,    
                        x_label = NULL,
                        y_label = "Real, PPP adjusted (millions)",
-                       category_order = "by_name",
-                       within_group_order = "by_name",
+                       category_order = "as_is",
+                       within_group_order = "as_is",
                        palette = "Zissou1",
                        line_size = 1.2,
                        label_size = 3,
@@ -364,7 +364,7 @@ ggsave(
   filename = here::here("Output","India","Total_GDP_Mission-Cities_2019_break.png"), 
   plot = final_plot, 
   width = 12,
-  height = 8,
+  height = 12,
   dpi = 600
 )
 
@@ -455,8 +455,8 @@ create_population_plot(subset(oe_comparators, Year == 2019),
 # Leading cities and comparators plots
 # # # # # # # # # # # # # # # # # # # # # # # 
 cities_list <- list(
-  Leading_cities = c("Delhi", "Chennai", "Bengaluru", "Surat", "Mumbai"),
-  Comparators = c("Guangzhou, Guangdong", "Bangkok", "Hyderabad (India)", "Shanghai", "Jakarta", "Monterrey")
+  Leading_cities = c("Delhi", "Chennai", "Bengaluru", "Surat", "Mumbai", "Hyderabad (India)"),
+  Comparators = c("Guangzhou, Guangdong", "Bangkok", "Shanghai", "Jakarta", "Monterrey")
 )
 
 oe_comparators2 <- data %>% 
@@ -490,8 +490,8 @@ create_population_plot(subset(oe_comparators2, Year == 2019),
                        source_size = 8,     
                        x_label = NULL,
                        y_label = "Total Population (thousands)",
-                       category_order = "by_name",
-                       within_group_order = "by_name",
+                       category_order = "as_is",
+                       within_group_order = "as_is",
                        palette = "Zissou1",
                        line_size = 1.2,
                        label_size = 3,
@@ -518,8 +518,8 @@ create_population_plot(subset(oe_comparators2, Year == 2019),
                        source_size = 8,    
                        x_label = NULL,
                        y_label = "Real, PPP adjusted (millions)",
-                       category_order = "by_name",
-                       within_group_order = "by_name",
+                       category_order = "as_is",
+                       within_group_order = "as_is",
                        palette = "Zissou1",
                        line_size = 1.2,
                        label_size = 3,
@@ -547,8 +547,8 @@ create_population_plot(subset(oe_comparators2, Year == 2019),
                        source_size = 8,    
                        x_label = NULL,
                        y_label = "Real, PPP adjusted (thousands)",
-                       category_order = "by_name",
-                       within_group_order = "by_name",
+                       category_order = "as_is",
+                       within_group_order = "as_is",
                        palette = "Zissou1",
                        line_size = 1.2,
                        label_size = 3,
@@ -609,8 +609,8 @@ create_population_plot(subset(oe_comparators2, Year == 2019),
                        source_size = 8,    
                        x_label = NULL,
                        y_label = "Percentage change between 2001-2019",
-                       category_order = "by_name",
-                       within_group_order = "by_name",
+                       category_order = "as_is",
+                       within_group_order = "as_is",
                        palette = "Zissou1",
                        line_size = 1.2,
                        label_size = 3,
@@ -704,7 +704,7 @@ p05  <- ggplot(pie_data, aes(x = Location, y = Percentage, fill = Sector)) +
   theme_minimal() +
   theme(
     plot.title = element_text(size = 16, face = "bold"),
-    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10, face = "bold"),
     axis.text.y = element_text(size = 10),
     legend.position = "right",
     legend.text = element_text(size = 8),
@@ -731,69 +731,124 @@ ggsave(
 )
 
 # For each city, for 2001-2019
-pie_data2 <- oe_comparators2 %>%
-  pivot_longer(cols = all_of(columns_to_pivot), names_to = "Sector", values_to = "Percentage") %>% 
-  filter(between(Year, 2001, 2019))
-
-# Get unique locations
-locations <- unique(pie_data2$Location)
 
 # Create a plot for each location
-for (loc in locations) {
-  # Filter data for the current location
-  loc_data <- pie_data2 %>% filter(Location == loc) %>%  mutate(Year = as.numeric(Year)) %>% 
-    mutate(Sector = str_remove(Sector, "_GVA_Pct"),
-           Sector = str_replace_all(Sector, "_", " "))
+create_gva_visualizations <- function(data, year_range = c(2001, 2019), 
+                                      output_dir = here::here("Output", "India")) {
   
-  # Get start and end years
-  start_year <- min(loc_data$Year)
-  end_year <- max(loc_data$Year)
-  
-  # Prepare label data
-  label_data <- loc_data %>%
-    group_by(Year) %>%
-    mutate(
-      pos = cumsum(Percentage) - 0.5 * Percentage,
-      perc = scales::percent(Percentage, accuracy = 0.1)
+  # Data preparation
+  pie_data <- data %>%
+    pivot_longer(
+      cols = ends_with("_GVA_Pct"), 
+      names_to = "Sector", 
+      values_to = "Percentage"
     ) %>%
-    ungroup()
+    filter(between(Year, year_range[1], year_range[2])) %>%
+    mutate(
+      Sector = str_remove(Sector, "_GVA_Pct"),
+      Sector = str_replace_all(Sector, "_", " "),
+      Year = as.numeric(Year)
+    )
   
-  # Create the plot
-  p06 <- ggplot(loc_data, aes(x = Year, y = Percentage, fill = Sector)) +
-    geom_area(position = "fill") +
-    scale_fill_manual(values = c(wes_palette("Zissou1", n = length(unique(pie_data2$Sector)), type = "continuous"), "#D3D3D3")) +
-    labs(title = paste("GVA Contribution by Sector in", loc, "(2011-2019)"),
-         x = "Year",
-         y = "Percentage",
-         fill = "Sector") +
-    theme_minimal() +
-    theme(
-      plot.title = element_text(size = 14, face = "bold"),
-      axis.text.x = element_text(angle = 45, hjust = 1, size = 8),
-      legend.position = "bottom",
-      legend.title = element_blank()
-    ) +
-    scale_y_continuous(labels = scales::percent_format()) +
-    scale_x_continuous(breaks = unique(loc_data$Year)) +
-    geom_text(data = label_data %>% filter(Year == start_year | Year == end_year),
-              aes(x = Year, y = pos, label = perc, group = Sector,
-                  hjust = ifelse(Year == start_year, 1, 0)),
-              size = 3) +
-    geom_line(data = label_data %>% filter(Year == start_year | Year == end_year),
-              aes(x = Year, y = pos, group = Sector),
-              linetype = "dotted", color = "gray50")
+  # Create directory if it doesn't exist
+  dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   
-  # Save the plot
-  ggsave(
-    filename = here::here("Output","India", paste0("GVA_Sector_Leading-Comparators_2001-2019_", gsub(" ", "_", loc), ".png")), 
-    plot = p06, 
-    width = 12,
-    height = 8,
-    dpi = 600
-  )
+  # Function to create single location plot
+  create_location_plot <- function(loc_data) {
+    # Get location name
+    location <- unique(loc_data$Location)
+    
+    # Get years for labels
+    start_year <- min(loc_data$Year)
+    end_year <- max(loc_data$Year)
+    
+    # Prepare label data with correct positioning
+    label_data <- loc_data %>%
+      group_by(Year) %>%
+      arrange(Year, desc(Sector)) %>%  # Important: consistent ordering
+      mutate(
+        # Calculate cumulative percentages for area positions
+        ymax = cumsum(Percentage),
+        ymin = lag(ymax, default = 0),
+        pos = (ymax + ymin) / 2,  # Center position for labels
+        perc = scales::percent(Percentage, accuracy = 0.1)
+      ) %>%
+      ungroup()
+    
+    # Create plot
+    p <- ggplot(loc_data, aes(x = Year, y = Percentage, fill = Sector)) +
+      geom_area(position = "fill", alpha = 0.8) +
+      scale_fill_manual(
+        values = c(
+          wes_palette("Zissou1", n = length(unique(loc_data$Sector)), 
+                      type = "continuous"), 
+          "#D3D3D3"
+        )
+      ) +
+      labs(
+        title = paste("GVA Contribution by Sector in", location, 
+                      paste0("(", start_year, "-", end_year, ")")),
+        x = NULL,
+        y = "Percentage",
+        fill = "Sector"
+      ) +
+      theme_minimal() +
+      theme(
+        plot.title = element_text(size = 14, face = "bold"),
+        axis.text.x = element_text(angle = 45, hjust = 1, size = 8, 
+                                   face = "bold"),
+        legend.position = "bottom",
+        legend.title = element_blank()
+      ) +
+      scale_y_continuous(labels = scales::percent_format()) +
+      scale_x_continuous(breaks = unique(loc_data$Year)) +
+      # Add labels and connecting lines with corrected positioning
+      geom_text(
+        data = label_data %>% 
+          filter(Year == start_year | Year == end_year),
+        aes(x = Year, y = pos, label = perc, group = Sector,
+            hjust = ifelse(Year == start_year, 1.1, -0.1)),  # Adjusted hjust
+        size = 3,
+        fontface = "bold"
+      ) +
+      geom_line(
+        data = label_data %>% 
+          filter(Year == start_year | Year == end_year),
+        aes(x = Year, y = pos, group = Sector),
+        linetype = "dotted", 
+        color = "gray50"
+      )
+    
+    # Save plot
+    filename <- paste0(
+      "GVA_Sector_Leading-Comparators_", 
+      start_year, "-", end_year, "_",
+      gsub(" ", "_", location), 
+      ".png"
+    )
+    
+    ggsave(
+      filename = file.path(output_dir, filename),
+      plot = p,
+      width = 12,
+      height = 8,
+      dpi = 600
+    )
+    
+    return(p)
+  }
   
+  # Create plots for each location
+  plots <- pie_data %>%
+    group_by(Location) %>%
+    group_map(~ create_location_plot(.x), .keep = TRUE)
+  
+  return(plots)
 }
 
-
+create_gva_visualizations(oe_comparators2 
+                          , year_range = c(2001, 2019)
+                          , output_dir = here::here("Output", "India")
+                          )
 
 
