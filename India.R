@@ -15,7 +15,7 @@ source("plot_function.R")
 dir.create("Output/India", showWarnings = FALSE)
 
 # Filter data for India
-oe_india <- data %>% filter(Country == "India")
+oe_india <- data %>% dplyr::filter(Country == "India")
 
 oe_india %>% distinct(.$Location) %>% View() #72 (not considering national
 
@@ -179,39 +179,122 @@ ggsave(filename = here::here("Output","India", "GDP_growth_2001-2019.png"),
        plot = p04, width = 12, height = 15, dpi = 600)
 
 ## Frontier distance
-data %>% 
-  mutate(GDPTOTUSC = as.numeric(GDPTOTUSC), 
-         POPTOTT = as.numeric(POPTOTT)) %>% 
+data_frontier <- data %>%
+  mutate(GDPTOTUSC = as.numeric(GDPTOTUSC),
+         POPTOTT = as.numeric(POPTOTT)) %>%
   filter(Year %in% c(2001, 2019)) %>%
   group_by(Location) %>%
-  reframe(
-    mutate(GDP_growth = if_else(Year == 2019,
-                                (GDPTOTUSC[Year == 2019]/GDPTOTUSC[Year == 2001])^(1/18) - 1,  # CAGR formula
-                                NA_real_)),
+  summarize(
+    GDP2001 = GDPTOTUSC[Year == 2001],
+    GDP2019 = GDPTOTUSC[Year == 2019],
     POPTOTT = POPTOTT[Year == 2019],
-    Country = Country[1]
+    Country = first(Country)
   ) %>%
-  filter(Location != Country) %>%
   mutate(
-    growth_quantile = ntile(GDP_growth, 100),
-    point_color = case_when(
-      Country == "India" ~ "orange",
-      growth_quantile >= 97 ~ "green",
-      TRUE ~ "grey"
-    )
+    GDP_growth = if_else(!is.na(GDP2001) & !is.na(GDP2019),
+                         (GDP2019 / GDP2001)^(1/18) - 1,
+                         NA_real_)
   ) %>%
-  ggplot(aes(x = log(POPTOTT), y = log(GDP_growth), color = point_color)) +
-  geom_point() +
-  geom_text(data = . %>% filter(Country == "India"), 
-            aes(label = Location), 
-            hjust = -0.1, 
-            size = 3) +
-  geom_smooth(method = "lm", se = FALSE) +
-  scale_color_identity() +
-  labs(x = "Log Population (2019)", 
+  filter(Location != Country) %>% 
+  dplyr::filter(!is.na(GDP_growth))
+
+  # %>%
+  # mutate(
+  #   growth_quantile = ntile(GDP_growth, 100),
+  #   point_color = case_when(
+  #     Country == "India" ~ "orange",
+  #     growth_quantile >= 97 ~ "green",
+  #     TRUE ~ "grey"
+  #   )
+  # ) %>%
+  # ggplot(aes(x = log(POPTOTT), y = log(GDP_growth), color = point_color)) +
+  # geom_point() +
+  # geom_text(data = . %>% filter(Country == "India"), 
+  #           aes(label = Location), 
+  #           hjust = -0.1, 
+  #           size = 3) +
+  # geom_smooth(method = "lm", se = FALSE) +
+  # scale_color_identity() +
+  # labs(x = "Log Population (2019)", 
+  #      y = "Log GDP Growth Rate (2001-2019)",
+  #      title = "GDP Growth vs Population") +
+  # theme_minimal()
+
+# Step 2: Identify frontier cities
+# Create population percentiles and find max GDP_growth for each percentile
+# Ensure non-missing GDP_growth and create deciles
+# Ensure non-missing GDP_growth and create deciles with jitter
+# Manually define decile breaks to ensure uniqueness
+unique_breaks <- unique(quantile(data_frontier$POPTOTT, probs = seq(0, 1, 0.1), na.rm = TRUE))
+
+# Ensure non-missing GDP_growth and create deciles
+# Manually define decile breaks to ensure uniqueness
+unique_breaks <- unique(quantile(data_frontier$POPTOTT, probs = seq(0, 1, 0.1), na.rm = TRUE))
+
+# Ensure non-missing GDP_growth and create deciles
+frontier_cities <- data_frontier %>%
+  dplyr::filter(!is.na(GDP_growth)) %>%
+  arrange(POPTOTT) %>%
+  mutate(pop_percentile = cut(POPTOTT, 
+                              breaks = c(unique_breaks[1], unique_breaks[-1] + 1e-7),
+                              include.lowest = TRUE, labels = FALSE)) %>%
+  group_by(pop_percentile) %>%
+  slice_max(GDP_growth, n = 1) %>%
+  ungroup()
+
+View(frontier_cities)
+
+
+# Step 3: Estimate frontier regression
+frontier_model <- lm(log(GDP_growth) ~ log(POPTOTT), data = frontier_cities)
+
+# Step 4: Calculate distances to frontier for all cities
+results <- processed_data %>%
+  mutate(
+    # Predicted frontier GDP_growth for each city's population
+    predicted_frontier = exp(predict(frontier_model, 
+                                     newdata = data.frame(POPTOTT = POPTOTT))),
+    # Distance to frontier as percentage difference
+    frontier_distance = ((GDP_growth - predicted_frontier) / predicted_frontier) * 100
+  )
+
+# Create visualization
+(frontier_plot <- ggplot() +
+  # All cities
+  geom_point(data = results,
+             aes(x = log(POPTOTT), y = log(GDP_growth), 
+                 color = ifelse(Country == "India", "orange", "gray")), 
+             alpha = 0.5) +
+  # Frontier cities
+  geom_point(data = frontier_cities,
+             aes(x = log(POPTOTT), y = log(GDP_growth)),
+             color = 'green', size = 3, alpha = 0.5) +
+  # Frontier line
+  geom_smooth(data = frontier_cities,
+              aes(x = log(POPTOTT), y = log(GDP_growth)),
+              method = "lm", color = "darkgreen", se = FALSE) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5),
+    axis.title.x = element_text(face = "bold", margin = margin(t = 50)),
+    axis.title.y = element_text(face = "bold"),
+    axis.text.x = element_blank(),
+    axis.text.y = element_text(face = "plain"),
+    axis.line.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    legend.position = "none",
+    panel.grid.major = element_line(color = "gray90"),
+    panel.grid.minor = element_line(color = "gray95"),
+    plot.caption = element_text(size = 8, color = "gray30", hjust = 1)
+  ) +
+  labs(x = "Log Population (2019)",
        y = "Log GDP Growth Rate (2001-2019)",
-       title = "GDP Growth vs Population") +
-  theme_minimal()
+       title = "Economic Frontier Analysis",
+       subtitle = "Green points and line represent frontier cities, orange points represent cities from India")
+)
+
+
 
 # Charts, focus and comparators -----
 # Mission cities
@@ -303,68 +386,73 @@ base_plot <- create_population_plot(subset(oe_comparators, Year == 2019),
                        height = 8
                       )
 
-require(patchwork)
+require(ggbreak)
 
 # Function to create a broken axis plot
-create_broken_axis_plot <- function(plot, break_low, break_high) {
-  # Extract the data from the original plot
-  plot_data <- layer_data(plot, 1)
-  
-  # Create the bottom portion - with y axis label
-  p1 <- plot + 
-    coord_cartesian(ylim = c(0, break_low)) +
-    # Larger, more visible break symbols for bottom plot
-    annotate("segment", x = c(-0.5, -0.5, -0.5), 
-             xend = c(-0.3, -0.3, -0.3),
-             y = c(break_low - 2000, break_low - 1000, break_low),
-             yend = c(break_low - 1000, break_low, break_low + 1000),
-             linewidth = 1.5) +
-    theme(plot.margin = margin(b = 0, t = 0, l = 50, r = 20),
-          plot.title = element_blank(),
-          plot.subtitle = element_blank(),
-          axis.text.x = element_text(angle = 45, hjust = 1)) # Show x-axis labels
-  
-  # Create the top portion - without y axis label
-  p2 <- plot + 
-    coord_cartesian(ylim = c(break_high, max(plot_data$y) * 1.15)) +
-    # Larger, more visible break symbols for top plot
-    annotate("segment", x = c(-0.5, -0.5, -0.5),
-             xend = c(-0.3, -0.3, -0.3),
-             y = c(break_high - 1000, break_high, break_high + 1000),
-             yend = c(break_high, break_high + 1000, break_high + 2000),
-             linewidth = 1.5) +
-    theme(plot.margin = margin(b = 0, t = 0, l = 30, r = 20),
-          plot.caption = element_blank(),
-          axis.title.y = element_blank(),
-          axis.text.x = element_blank()) # Hide x-axis labels for top plot
-  
-  # Combine the plots with minimal space between them
-  combined_plot <- p2 / p1 + 
-    plot_layout(heights = c(1, 2), guides = "collect") & 
-    theme(plot.margin = margin(t = 20, r = 20, b = 10, l = 50),
-          plot.spacing = unit(0.001, "cm")) # Reduced spacing between plots
-  
-  return(combined_plot)
+# Function requires ggbreak package
+if (!requireNamespace("ggbreak", quietly = TRUE)) {
+  stop("Please install the ggbreak package: install.packages('ggbreak')")
 }
-# Use the function with your specific break points
-broken_plot <- create_broken_axis_plot(
-  base_plot,
-  break_low = 30000,    # Upper limit of bottom section
-  break_high = 350000   # Lower limit of top section
-)
-# Add final adjustments
-(final_plot <- broken_plot + 
-    plot_annotation(
-      theme = theme(
-        plot.margin = margin(t = 20, r = 20, b = 80, l = 50)
-      )
+
+create_broken_axis_plot <- function(plot, breaks, upper_space = 0.3, y_expansion = 0.05) {
+  # Input validation
+  if (!is.numeric(breaks) || length(breaks) != 2) {
+    stop("breaks must be a numeric vector of length 2")
+  }
+  if (breaks[1] >= breaks[2]) {
+    stop("First break point must be less than second break point")
+  }
+  
+  # Get the order and colors from the original plot
+  location_order <- levels(plot$data$Location)
+  if(is.null(location_order)) {
+    location_order <- unique(plot$data$Location)
+  }
+  original_colors <- plot$scales$get_scales("fill")$palette(12)
+  
+  # Create the modified plot with break
+  broken_plot <- plot +
+    ggbreak::scale_y_break(
+      breaks = breaks,
+      space = upper_space,  # Control the relative space of the upper section
+      expand = expansion(mult = c(0, y_expansion))  # Tighter control of y-axis expansion
+    ) +
+    scale_fill_manual(
+      values = original_colors,
+      limits = location_order
+    ) +
+    theme(
+      plot.margin = margin(t = 20, r = 20, b = 20, l = 50),  # Adjusted margins
+      legend.position = "bottom",
+      legend.title = element_text(face = "bold"),
+      legend.text = element_text(size = 8),
+      legend.key.size = unit(0.8, "cm"),
+      legend.box = "horizontal",
+      legend.spacing.x = unit(0.2, "cm")  # Space between legend items
+    ) +
+    guides(fill = guide_legend(
+      title = "Location", 
+      nrow = 2,  # Arrange in 2 rows
+      byrow = TRUE,
+      title.position = "top"
     ))
+  
+  return(broken_plot)
+}
+
+(final_plot <- create_broken_axis_plot(
+  base_plot,
+  breaks = c(25000, 350000),  # Define break points
+  upper_space = 0.3 , # More compressed upper section
+  y_expansion = 0.05
+  )
+)
 
 ggsave(
   filename = here::here("Output","India","Total_GDP_Mission-Cities_2019_break.png"), 
   plot = final_plot, 
   width = 12,
-  height = 12,
+  height = 8,
   dpi = 600
 )
 
