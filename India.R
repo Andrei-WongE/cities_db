@@ -223,13 +223,8 @@ data_frontier <- data %>%
 # Step 2: Identify frontier cities
 # Create population percentiles and find max GDP_growth for each percentile
 # Ensure non-missing GDP_growth and create deciles
-# Ensure non-missing GDP_growth and create deciles with jitter
 # Manually define decile breaks to ensure uniqueness
-unique_breaks <- unique(quantile(data_frontier$POPTOTT, probs = seq(0, 1, 0.1), na.rm = TRUE))
-
-# Ensure non-missing GDP_growth and create deciles
-# Manually define decile breaks to ensure uniqueness
-unique_breaks <- unique(quantile(data_frontier$POPTOTT, probs = seq(0, 1, 0.1), na.rm = TRUE))
+unique_breaks <- unique(quantile(data_frontier$POPTOTT, probs = seq(0, 1, 0.01), na.rm = TRUE))
 
 # Ensure non-missing GDP_growth and create deciles
 frontier_cities <- data_frontier %>%
@@ -249,7 +244,7 @@ View(frontier_cities)
 frontier_model <- lm(log(GDP_growth) ~ log(POPTOTT), data = frontier_cities)
 
 # Step 4: Calculate distances to frontier for all cities
-results <- processed_data %>%
+results <- data_frontier %>%
   mutate(
     # Predicted frontier GDP_growth for each city's population
     predicted_frontier = exp(predict(frontier_model, 
@@ -259,42 +254,81 @@ results <- processed_data %>%
   )
 
 # Create visualization
+require(ggrepel)
+
+indian_frontier_cities <- frontier_cities %>% 
+  filter(Country == "India") %>%
+  # Add positioning logic
+  mutate(
+    above_line = log(GDP_growth) > predict(frontier_model, 
+                                           newdata = data.frame(POPTOTT = POPTOTT))
+  )
+
 (frontier_plot <- ggplot() +
-  # All cities
-  geom_point(data = results,
-             aes(x = log(POPTOTT), y = log(GDP_growth), 
-                 color = ifelse(Country == "India", "orange", "gray")), 
-             alpha = 0.5) +
-  # Frontier cities
-  geom_point(data = frontier_cities,
-             aes(x = log(POPTOTT), y = log(GDP_growth)),
-             color = 'green', size = 3, alpha = 0.5) +
-  # Frontier line
-  geom_smooth(data = frontier_cities,
-              aes(x = log(POPTOTT), y = log(GDP_growth)),
-              method = "lm", color = "darkgreen", se = FALSE) +
-  theme_minimal() +
-  theme(
-    plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
-    plot.subtitle = element_text(hjust = 0.5),
-    axis.title.x = element_text(face = "bold", margin = margin(t = 50)),
-    axis.title.y = element_text(face = "bold"),
-    axis.text.x = element_blank(),
-    axis.text.y = element_text(face = "plain"),
-    axis.line.x = element_blank(),
-    axis.ticks.x = element_blank(),
-    legend.position = "none",
-    panel.grid.major = element_line(color = "gray90"),
-    panel.grid.minor = element_line(color = "gray95"),
-    plot.caption = element_text(size = 8, color = "gray30", hjust = 1)
-  ) +
-  labs(x = "Log Population (2019)",
-       y = "Log GDP Growth Rate (2001-2019)",
-       title = "Economic Frontier Analysis",
-       subtitle = "Green points and line represent frontier cities, orange points represent cities from India")
+# Base cities (grey)
+geom_point(data = results %>% 
+            filter(Country != "India" & !(Location %in% frontier_cities$Location)),
+          aes(x = log(POPTOTT), y = log(GDP_growth)), 
+          color = "grey", 
+          alpha = 0.3) +
+# Indian cities (orange)
+geom_point(data = results %>% 
+            filter(Country == "India"),
+          aes(x = log(POPTOTT), y = log(GDP_growth)), 
+          color = "orange", 
+          alpha = 0.5) +
+# Frontier cities (green)
+geom_point(data = frontier_cities,
+          aes(x = log(POPTOTT), y = log(GDP_growth)),
+          color = 'lightgreen', 
+          size = 3, 
+          alpha = 0.7) +
+# Labels with smart placement
+geom_text_repel(
+ data = indian_frontier_cities,
+ aes(x = log(POPTOTT), 
+     y = log(GDP_growth), 
+     label = Location),
+ size = 2.5,
+ force = 8,
+ box.padding = 0.3,
+ point.padding = 0.2,
+ max.overlaps = Inf,
+ direction = "both",
+ segment.size = 0.3,
+ segment.color = "grey50",
+ segment.linetype = "dotted",
+ min.segment.length = 0,
+ nudge_y = ifelse(indian_frontier_cities$above_line, 0.2, -0.2),  # Push labels up or down based on position
+ xlim = c(6, 10),
+ ylim = c(-8, -1)
+) +
+# Frontier line
+geom_smooth(data = frontier_cities,
+           aes(x = log(POPTOTT), y = log(GDP_growth)),
+           method = "lm", 
+           color = "darkgreen", 
+           se = FALSE) +
+theme_minimal() +
+theme(
+ plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
+ plot.subtitle = element_text(hjust = 0.5),
+ axis.title.x = element_text(face = "bold"),
+ axis.title.y = element_text(face = "bold"),
+ axis.text.x = element_text(face = "plain"),
+ axis.text.y = element_text(face = "plain"),
+ legend.position = "none",
+ plot.margin = margin(1, 1, 1, 1, "cm")
+) +
+coord_cartesian(clip = "off") +
+labs(x = "Log Population (2019)",
+    y = "Log GDP Growth Rate (2001-2019)",
+    title = "Economic Frontier Analysis",
+    subtitle = "Green points and line represent frontier cities, orange points represent cities from India")
 )
 
-
+ggsave(filename = here::here("Output","India", "Frontier-Cities_2019_break.png"),
+       plot = frontier_plot, width = 12, height = 10, dpi = 600)
 
 # Charts, focus and comparators -----
 # Mission cities
