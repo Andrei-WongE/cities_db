@@ -96,3 +96,7 @@ data <- data %>%
                              NA_real_, 
                              EMPTOTT / National_EMP)
   )
+
+# Create Region variable
+
+

@@ -263,80 +263,90 @@ indian_closest_cities <- results %>%
   mutate(
     percentile_rank = ntile(frontier_distance, 100)  # Calculate percentile
   ) %>%
-  filter(percentile_rank >= 50) %>%  # Select top 10%
+  filter(percentile_rank >= 50) %>%  # Select top 50%
   dplyr::select(Location, POPTOTT, GDP_per_capita, predicted_frontier, frontier_distance) %>%
   arrange(desc(frontier_distance))
 
 View(indian_closest_cities)
 
+# Calculate if points are above or below frontier line
+indian_closest_cities <- indian_closest_cities %>%
+ mutate(
+   above_line = log(GDP_per_capita) > predict(frontier_model, 
+                                              newdata = data.frame(POPTOTT = POPTOTT))
+ )
+
 (frontier_plot <- ggplot() +
-    # Base cities (grey)
-    geom_point(data = results %>% 
-                 filter(Country != "India"),
-               aes(x = log(POPTOTT), y = log(GDP_per_capita)), 
-               color = "grey", 
-               alpha = 0.3) +
-    # All Indian cities (light orange)
-    geom_point(data = results %>% 
-                 filter(Country == "India") %>%
-                 filter(!Location %in% indian_closest_cities$Location),
-               aes(x = log(POPTOTT), y = log(GDP_per_capita)), 
-               color = "orange", 
-               alpha = 0.3) +
-    # Top 10% Indian cities (darker orange)
-    geom_point(data = indian_closest_cities,
-               aes(x = log(POPTOTT), y = log(GDP_per_capita)),
-               color = "darkorange", 
-               size = 3, 
-               alpha = 0.7) +
-    # Frontier cities (green)
-    geom_point(data = frontier_cities,
-               aes(x = log(POPTOTT), y = log(GDP_per_capita)),
-               color = 'lightgreen', 
-               size = 3, 
-               alpha = 0.7) +
-    # Labels for top 10% Indian cities
-    geom_text_repel(
-      data = indian_closest_cities,
-      aes(x = log(POPTOTT), 
-          y = log(GDP_per_capita), 
-          label = paste0(Location, "\n(", round(frontier_distance, 1), "%)")),
-      size = 3,
-      force = 10,
-      box.padding = 0.8,
-      point.padding = 0.3,
-      max.overlaps = Inf,
-      direction = "y",
-      segment.size = 0.3,
-      segment.color = "grey50",
-      segment.linetype = "dotted",
-      min.segment.length = 0
-    ) +
-    # Frontier line
-    stat_smooth(data = frontier_cities %>%
-                  filter(log(POPTOTT) >= 6 & log(POPTOTT) <= 10),
-                aes(x = log(POPTOTT), y = log(GDP_per_capita)),
-                method = "lm", 
-                color = "darkgreen", 
-                se = FALSE) +
-    theme_minimal() +
-    theme(
-      plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
-      plot.subtitle = element_text(hjust = 0.5),
-      axis.title.x = element_text(face = "bold"),
-      axis.title.y = element_text(face = "bold"),
-      axis.text.x = element_text(face = "plain"),
-      axis.text.y = element_text(face = "plain"),
-      legend.position = "none",
-      plot.margin = margin(t = 1, r = 2, b = 1, l = 1, unit = "cm")
-    ) +
-    scale_x_continuous(limits = c(6, 10), breaks = seq(6, 10, 1)) +
-    scale_y_continuous(limits = c(6, 14), breaks = seq(6, 14, 2)) +
-    coord_cartesian(clip = "off") +
-    labs(x = "Log Population (2019)",
-         y = "Log GDP per capita, real, PPP adjusted (2019)",
-         title = "Economic Frontier Analysis",
-         subtitle = "Green points represent frontier cities, dark orange points show top 10% Indian cities closest to frontier")
+ # Base cities (grey)
+ geom_point(data = results %>% 
+              filter(Country != "India"),
+            aes(x = log(POPTOTT), y = log(GDP_per_capita)), 
+            color = "grey", 
+            alpha = 0.3) +
+ # All Indian cities (light orange)
+ geom_point(data = results %>% 
+              filter(Country == "India") %>%
+              filter(!Location %in% indian_closest_cities$Location),
+            aes(x = log(POPTOTT), y = log(GDP_per_capita)), 
+            color = "orange", 
+            alpha = 0.3) +
+ # Top 10% Indian cities (darker orange)
+ geom_point(data = indian_closest_cities,
+            aes(x = log(POPTOTT), y = log(GDP_per_capita)),
+            color = "darkorange", 
+            size = 3, 
+            alpha = 0.7) +
+ # Frontier cities (green)
+ geom_point(data = frontier_cities,
+            aes(x = log(POPTOTT), y = log(GDP_per_capita)),
+            color = 'lightgreen', 
+            size = 3, 
+            alpha = 0.7) +
+ # Labels for top 10% Indian cities with smart placement
+ geom_text_repel(
+   data = indian_closest_cities,
+   aes(x = log(POPTOTT), 
+       y = log(GDP_per_capita), 
+       label = paste0(Location, "\n(", round(frontier_distance, 1), "%)"),
+       vjust = ifelse(above_line, -0.2, 1.2)),  # Adjust vertical position based on point location
+   size = 3,
+   force = 10,
+   box.padding = 0.8,
+   point.padding = 0.3,
+   max.overlaps = Inf,
+   direction = "y",    # Keep vertical direction for better spacing
+   segment.size = 0.3,
+   segment.color = "grey50",
+   segment.linetype = "dotted",
+   min.segment.length = 0,
+   nudge_y = ifelse(indian_closest_cities$above_line, 0.8, -0.8)  # Push labels up or down based on point position
+ ) +
+ # Frontier line
+ stat_smooth(data = frontier_cities %>%
+               filter(log(POPTOTT) >= 6 & log(POPTOTT) <= 10),
+             aes(x = log(POPTOTT), y = log(GDP_per_capita)),
+             method = "lm", 
+             color = "darkgreen", 
+             se = FALSE) +
+ theme_minimal() +
+ theme(
+   plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
+   plot.subtitle = element_text(hjust = 0.5),
+   axis.title.x = element_text(face = "bold"),
+   axis.title.y = element_text(face = "bold"),
+   axis.text.x = element_text(face = "plain"),
+   axis.text.y = element_text(face = "plain"),
+   legend.position = "none",
+   plot.margin = margin(t = 1, r = 2, b = 1, l = 1, unit = "cm")
+ ) +
+ scale_x_continuous(limits = c(6, 10), breaks = seq(6, 10, 1)) +
+ scale_y_continuous(limits = c(6, 14), breaks = seq(6, 14, 2)) +
+ coord_cartesian(clip = "off") +
+ labs(x = "Log Population (2019)",
+      y = "Log GDP per capita, real, PPP adjusted (2019)",
+      title = "Economic Frontier Analysis",
+      subtitle = "Green points represent frontier cities, dark orange points show top 50% Indian cities closest to frontier")
+
 )
 
 ggsave(filename = here::here("Output","India", "Frontier-Cities_2019.png"),
