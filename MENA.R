@@ -328,8 +328,8 @@ mena_closest_cities <- mena_closest_cities %>%
       legend.position = "none",
       plot.margin = margin(t = 1, r = 2, b = 1, l = 1, unit = "cm")
     ) +
-    scale_x_continuous(limits = c(6, 10), breaks = seq(6, 10, 1)) +
-    scale_y_continuous(limits = c(6, 14), breaks = seq(6, 14, 2)) +
+    # scale_x_continuous(limits = c(6, 10), breaks = seq(6, 10, 1)) +
+    # scale_y_continuous(limits = c(6, 14), breaks = seq(6, 14, 2)) +
     coord_cartesian(clip = "off") +
     labs(x = "Log Population (2019)",
          y = "Log GDP per capita, real, PPP adjusted (2019)",
