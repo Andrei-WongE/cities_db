@@ -200,7 +200,7 @@ oe_mena %>%
 data_frontier <- data %>%
   mutate(GDPTOTUSC = as.numeric(GDPTOTUSC),
          POPTOTT = as.numeric(POPTOTT),
-         GDP_per_capita = as.numeric(GDPTOTPPPC)) %>%
+         GDP_per_capita = as.numeric(GDPTOTPPPC / POPTOTT)) %>%
   filter(Year %in% c(2019)) %>%
   filter(Location != Country) %>% 
   dplyr::filter(!is.na(GDP_per_capita)) %>%
@@ -253,7 +253,7 @@ mena_closest_cities <- results %>%
     percentile_rank = ntile(frontier_distance, 100)  # Calculate percentile
   ) %>%
   filter(percentile_rank >= 15) %>%  # Select top 15
-  dplyr::select(Location, POPTOTT, GDP_per_capita, predicted_frontier, frontier_distance) %>%
+  dplyr::select(Location, POPTOTT, GDPTOTPPPC, GDP_per_capita, predicted_frontier, frontier_distance) %>%
   arrange(desc(frontier_distance))
 
 View(mena_closest_cities)
