@@ -200,7 +200,7 @@ oe_mena %>%
 data_frontier <- data %>%
   mutate(GDPTOTUSC = as.numeric(GDPTOTUSC),
          POPTOTT = as.numeric(POPTOTT),
-         GDP_per_capita = as.numeric(GDPTOTPPPC / POPTOTT)) %>%
+         GDP_per_capita = as.numeric(GDPTOTPPPC)) %>%
   filter(Year %in% c(2019)) %>%
   filter(Location != Country) %>% 
   dplyr::filter(!is.na(GDP_per_capita)) %>%
@@ -311,8 +311,7 @@ mena_closest_cities <- mena_closest_cities %>%
       nudge_y = ifelse(mena_closest_cities$above_line, 0.8, -0.8)  # Push labels up or down based on point position
     ) +
     # Frontier line
-    stat_smooth(data = frontier_cities %>%
-                  filter(log(POPTOTT) >= 6 & log(POPTOTT) <= 10),
+    stat_smooth(data = frontier_cities,
                 aes(x = log(POPTOTT), y = log(GDP_per_capita)),
                 method = "lm", 
                 color = "darkgreen", 
@@ -328,8 +327,12 @@ mena_closest_cities <- mena_closest_cities %>%
       legend.position = "none",
       plot.margin = margin(t = 1, r = 2, b = 1, l = 1, unit = "cm")
     ) +
-    # scale_x_continuous(limits = c(6, 10), breaks = seq(6, 10, 1)) +
-    # scale_y_continuous(limits = c(6, 14), breaks = seq(6, 14, 2)) +
+    expand_limits(
+      x = range(log(data_frontier$POPTOTT)),
+      y = range(log(data_frontier$GDP_per_capita))
+    ) +
+    scale_x_continuous(breaks = scales::pretty_breaks(n = 5)) +
+    scale_y_continuous(breaks = scales::pretty_breaks(n = 7)) +
     coord_cartesian(clip = "off") +
     labs(x = "Log Population (2019)",
          y = "Log GDP per capita, real, PPP adjusted (2019)",
@@ -341,8 +344,10 @@ mena_closest_cities <- mena_closest_cities %>%
 ggsave(filename = here::here("Output","MENA", "Frontier-Cities_2019_MENA.png"),
        plot = frontier_plot, width = 12, height = 10, dpi = 600)
 
+# Other comparisons groups with frontier cities
+# Define country groups properly
 country_groups <- list(
-  gcc_countries <- c(
+  GCC = c(
     "Bahrain",
     "Kuwait",
     "Oman",
@@ -351,7 +356,7 @@ country_groups <- list(
     "UAE"
   ),
   
-  Maghreb_countries <- c(
+  Maghreb = c(
     "Algeria",
     "Libya",
     "Mauritania",
@@ -359,100 +364,55 @@ country_groups <- list(
     "Tunisia"
   ),
   
-  Mashreq_countries <- c("Bahrain",
-                         "Egypt",
-                         "Iraq",
-                         "Jordan",
-                         "Kuwait",
-                         # "Lebanon",
-                         "Oman",
-                         "Palestine",
-                         "Qatar",
-                         "Saudi Arabia",
-                         "Sudan",
-                         "Syria",
-                         "UAE",
-                         "Yemen")
+  Mashreq = c("Bahrain",
+              "Egypt",
+              "Iraq",
+              "Jordan",
+              "Kuwait",
+              # "Lebanon",
+              "Oman",
+              "Palestine",
+              "Qatar",
+              "Saudi Arabia",
+              "Sudan",
+              "Syria",
+              "UAE",
+              "Yemen")
 )
 
 # Function to create frontier plot for a specific group
-create_frontier_plot <- function(data_frontier, frontier_cities, country_group, 
-                                 group_name, group_color = "darkorange") {
+create_frontier_plot <- function(data_frontier, frontier_cities, frontier_model,
+                                 country_group, group_name, group_color = "darkorange") {
   
-  # Calculate results and closest cities for the specific group
-  results <- data_frontier %>%
-    mutate(
-      predicted_frontier = exp(predict(frontier_model, 
-                                       newdata = data.frame(POPTOTT = POPTOTT))),
-      frontier_distance = ((GDP_per_capita - predicted_frontier) / predicted_frontier) * 100
-    )
-  
-  group_closest_cities <- results %>%
-    filter(Country %in% country_group) %>%
-    arrange(desc(frontier_distance)) %>%
-    mutate(
-      percentile_rank = ntile(frontier_distance, 100)
-    ) %>%
-    filter(percentile_rank >= 15) %>%
-    dplyr::select(Location, Country, POPTOTT, GDPTOTPPPC, GDP_per_capita, 
-                  predicted_frontier, frontier_distance) %>%
-    arrange(desc(frontier_distance)) %>%
-    mutate(
-      above_line = log(GDP_per_capita) > predict(frontier_model,
-                                                 newdata = data.frame(POPTOTT = POPTOTT))
-    )
+  # Print for debugging
+  print(paste("Processing", group_name))
+  print(paste("Number of cities in group:", 
+              nrow(data_frontier %>% filter(Country %in% country_group))))
   
   # Create the plot
   ggplot() +
     # Base cities (grey)
-    geom_point(data = results %>% 
+    geom_point(data = data_frontier %>% 
                  filter(!Country %in% country_group),
                aes(x = log(POPTOTT), y = log(GDP_per_capita)), 
-               color = "grey80", 
+               color = "grey90", 
                alpha = 0.2,
                size = 1) +
     
-    # All group cities (light version of group color)
-    geom_point(data = results %>% 
+    # Group's cities
+    geom_point(data = data_frontier %>% 
                  filter(Country %in% country_group) %>%
-                 filter(!Location %in% group_closest_cities$Location),
+                 filter(Location != Country),  # Only cities, not countries
                aes(x = log(POPTOTT), y = log(GDP_per_capita)), 
-               color = adjustcolor(group_color, alpha = 0.3),
-               size = 1.5) +
-    
-    # Top 15 group cities (darker group color)
-    geom_point(data = group_closest_cities,
-               aes(x = log(POPTOTT), y = log(GDP_per_capita)),
                color = group_color,
-               size = 2.5,
-               alpha = 0.8) +
+               size = 2) +
     
     # Frontier cities (green)
     geom_point(data = frontier_cities,
                aes(x = log(POPTOTT), y = log(GDP_per_capita)),
                color = '#90EE90', 
-               size = 2.5, 
+               size = 2.5,
                alpha = 0.8) +
-    
-    # Labels for top cities
-    geom_text_repel(
-      data = group_closest_cities,
-      aes(x = log(POPTOTT), 
-          y = log(GDP_per_capita), 
-          label = paste0(Location, "\n(", round(frontier_distance, 1), "%)"),
-          vjust = ifelse(above_line, -0.2, 1.2)),
-      size = 3,
-      force = 10,
-      box.padding = 0.8,
-      point.padding = 0.3,
-      max.overlaps = Inf,
-      direction = "y",
-      segment.size = 0.3,
-      segment.color = "grey50",
-      segment.linetype = "dotted",
-      min.segment.length = 0,
-      nudge_y = ifelse(group_closest_cities$above_line, 0.8, -0.8)
-    ) +
     
     # Frontier line
     stat_smooth(data = frontier_cities %>%
@@ -462,7 +422,27 @@ create_frontier_plot <- function(data_frontier, frontier_cities, country_group,
                 color = "darkgreen", 
                 se = FALSE,
                 size = 0.5) +
-    
+    # Labels for top group cities with smart placement
+    geom_text_repel(
+      data = data_frontier %>% 
+        filter(Country %in% country_group) %>%
+        filter(Location != Country),  # Only cities, not countries
+      aes(x = log(POPTOTT), 
+          y = log(GDP_per_capita), 
+          label = paste0(Location, "\n(", round(frontier_distance, 1), "%)"),
+          vjust = ifelse(above_line, -0.2, 1.2)),  # Adjust vertical position based on point location
+      size = 3,
+      force = 10,
+      box.padding = 0.8,
+      point.padding = 0.3,
+      max.overlaps = Inf,
+      direction = "y",    # Keep vertical direction for better spacing
+      segment.size = 0.3,
+      segment.color = "grey50",
+      segment.linetype = "dotted",
+      min.segment.length = 0,
+      nudge_y = ifelse(mena_closest_cities$above_line, 0.8, -0.8)  # Push labels up or down based on point position
+    ) +
     # Formatting
     theme_minimal() +
     theme(
@@ -474,38 +454,46 @@ create_frontier_plot <- function(data_frontier, frontier_cities, country_group,
       legend.position = "none",
       plot.margin = margin(t = 20, r = 20, b = 20, l = 20)
     ) +
-    
-    scale_x_continuous(limits = c(6, 10), 
-                       breaks = seq(6, 10, 1),
-                       expand = c(0.01, 0.01)) +
-    scale_y_continuous(limits = c(6, 14), 
-                       breaks = seq(6, 14, 2),
-                       expand = c(0.01, 0.01)) +
-    
+    expand_limits(
+      x = range(log(data_frontier$POPTOTT)),
+      y = range(log(data_frontier$GDP_per_capita))
+    ) +
+    scale_x_continuous(breaks = scales::pretty_breaks(n = 5)) +
+    scale_y_continuous(breaks = scales::pretty_breaks(n = 7)) +
+    coord_cartesian(clip = "off") +
     labs(x = "Log Population (2019)",
          y = "Log GDP per capita, real, PPP adjusted (2019)",
          title = paste("Economic Frontier Analysis:", group_name),
-         subtitle = paste("Green points represent frontier cities, dark", 
-                          tolower(group_color), "points show top 15", 
-                          group_name, "cities in dataset"))
+         subtitle = paste("Green points represent frontier cities,", 
+                          tolower(group_name), "cities shown in",
+                          case_when(
+                            group_name == "GCC" ~ "orange",
+                            group_name == "Maghreb" ~ "purple",
+                            group_name == "Mashreq" ~ "blue"
+                          )))
 }
 
-# Create the three plots with different colors for each group
-gcc_plot <- create_frontier_plot(data_frontier, frontier_cities, 
-                                 country_groups$GCC, "GCC", "darkorange")
+# Create the plots
+plots <- list(
+  GCC = create_frontier_plot(data_frontier, frontier_cities, frontier_model,
+                             country_groups$GCC, "GCC", "#FFA500"),
+  
+  Maghreb = create_frontier_plot(data_frontier, frontier_cities, frontier_model,
+                                 country_groups$Maghreb, "Maghreb", "#800080"),
+  
+  Mashreq = create_frontier_plot(data_frontier, frontier_cities, frontier_model,
+                                 country_groups$Mashreq, "Mashreq", "#0000FF")
+)
 
-maghreb_plot <- create_frontier_plot(data_frontier, frontier_cities, 
-                                     country_groups$Maghreb, "Maghreb", "purple")
-
-mashreq_plot <- create_frontier_plot(data_frontier, frontier_cities, 
-                                     country_groups$Mashreq, "Mashreq", "darkblue")
-
-# Save the plots
-ggsave(filename = here::here("Output", "MENA", "Frontier-Cities_2019_GCC.png"),
-       plot = gcc_plot, width = 12, height = 10, dpi = 600)
-
-ggsave(filename = here::here("Output", "MENA", "Frontier-Cities_2019_Maghreb.png"),
-       plot = maghreb_plot, width = 12, height = 10, dpi = 600)
-
-ggsave(filename = here::here("Output", "MENA", "Frontier-Cities_2019_Mashreq.png"),
-       plot = mashreq_plot, width = 12, height = 10, dpi = 600)
+# Save all plots
+walk2(
+  names(plots),
+  plots,
+  ~ggsave(
+    filename = here::here("Output", "MENA", sprintf("Frontier-Cities_2019_%s.png", .x)),
+    plot = .y,
+    width = 12,
+    height = 10,
+    dpi = 600
+  )
+)
