@@ -200,10 +200,10 @@ oe_mena %>%
 data_frontier <- data %>%
   mutate(GDPTOTUSC = as.numeric(GDPTOTUSC),
          POPTOTT = as.numeric(POPTOTT),
-         GDP_per_capita = as.numeric(GDPTOTPPPC)) %>%
+         GDP = as.numeric(GDPTOTPPPC)) %>%
   filter(Year %in% c(2019)) %>%
   filter(Location != Country) %>% 
-  dplyr::filter(!is.na(GDP_per_capita)) %>%
+  dplyr::filter(!is.na(GDP)) %>%
   mutate(Region = case_when(
     Country %in% mena_countries ~ "MENA",
     TRUE ~ "Not_MENA"
@@ -217,31 +217,31 @@ unique_breaks <- unique(quantile(data_frontier$POPTOTT
                                  , probs = seq(0, 1, 0.01)
                                  , na.rm = TRUE))
 
-# Ensure non-missing GDP_per_capita and create deciles
+# Ensure non-missing GDP and create deciles
 frontier_cities <- data_frontier %>%
-  dplyr::filter(!is.na(GDP_per_capita)) %>%
+  dplyr::filter(!is.na(GDP)) %>%
   arrange(POPTOTT) %>%
   mutate(pop_percentile = cut(POPTOTT, 
                               breaks = c(unique_breaks[1], unique_breaks[-1] + 1e-7),
                               include.lowest = TRUE, labels = FALSE)) %>%
   group_by(pop_percentile) %>%
-  slice_max(GDP_per_capita, n = 1) %>%
+  slice_max(GDP, n = 1) %>%
   ungroup()
 
 View(frontier_cities)
 
 # Step 3: Estimate frontier regression
-frontier_model <- lm(log(GDP_per_capita) ~ log(POPTOTT), data = frontier_cities)
+frontier_model <- lm(log(GDP) ~ log(POPTOTT), data = frontier_cities)
 
 # Step 4: Calculate distances to frontier for all cities
 # Create the labeled data
 results <- data_frontier %>%
   mutate(
-    # Predicted frontier GDP_per_capita for each city's population
+    # Predicted frontier GDP for each city's population
     predicted_frontier = exp(predict(frontier_model, 
                                      newdata = data.frame(POPTOTT = POPTOTT))),
     # Distance to frontier as percentage difference
-    frontier_distance = ((GDP_per_capita - predicted_frontier) / predicted_frontier) * 100
+    frontier_distance = ((GDP - predicted_frontier) / predicted_frontier) * 100
   )
 
 # Step 5: Calculate distances specifically for MENA cities and find top 50% all
@@ -253,7 +253,7 @@ mena_closest_cities <- results %>%
     percentile_rank = ntile(frontier_distance, 100)  # Calculate percentile
   ) %>%
   filter(percentile_rank >= 15) %>%  # Select top 15
-  dplyr::select(Location, POPTOTT, GDPTOTPPPC, GDP_per_capita, predicted_frontier, frontier_distance) %>%
+  dplyr::select(Location, POPTOTT, GDPTOTPPPC, GDP, predicted_frontier, frontier_distance) %>%
   arrange(desc(frontier_distance))
 
 View(mena_closest_cities)
@@ -261,7 +261,7 @@ View(mena_closest_cities)
 # Calculate if points are above or below frontier line
 mena_closest_cities <- mena_closest_cities %>%
   mutate(
-    above_line = log(GDP_per_capita) > predict(frontier_model,
+    above_line = log(GDP) > predict(frontier_model,
                                                newdata = data.frame(POPTOTT = POPTOTT))
   )
 
@@ -272,25 +272,25 @@ avg_frontier_distance <- mean(mena_closest_cities$frontier_distance, na.rm = TRU
     # Base cities (grey)
     geom_point(data = results %>% 
                filter(Region != "MENA"),
-               aes(x = log(POPTOTT), y = log(GDP_per_capita)), 
+               aes(x = log(POPTOTT), y = log(GDP)), 
                color = "grey", 
                alpha = 0.3) +
     # All MENA cities (light orange)
     geom_point(data = results %>% 
                  filter(Region == "MENA") %>%
                  filter(!Location %in% mena_closest_cities$Location),
-               aes(x = log(POPTOTT), y = log(GDP_per_capita)), 
+               aes(x = log(POPTOTT), y = log(GDP)), 
                color = "orange", 
                alpha = 0.3) +
     # Top 50% MENA cities (darker orange)
     geom_point(data = mena_closest_cities,
-               aes(x = log(POPTOTT), y = log(GDP_per_capita)),
+               aes(x = log(POPTOTT), y = log(GDP)),
                color = "darkorange",
                size = 3,
                alpha = 0.7) +
     # Frontier cities (green)
     geom_point(data = frontier_cities,
-               aes(x = log(POPTOTT), y = log(GDP_per_capita)),
+               aes(x = log(POPTOTT), y = log(GDP)),
                color = 'lightgreen', 
                size = 3, 
                alpha = 0.7) +
@@ -298,7 +298,7 @@ avg_frontier_distance <- mean(mena_closest_cities$frontier_distance, na.rm = TRU
     geom_text_repel(
       data = mena_closest_cities,
       aes(x = log(POPTOTT), 
-          y = log(GDP_per_capita), 
+          y = log(GDP), 
           label = paste0(Location, "\n(", round(frontier_distance, 1), "%)"),
           vjust = ifelse(above_line, -0.2, 1.2)),  # Adjust vertical position based on point location
       size = 3,
@@ -315,7 +315,7 @@ avg_frontier_distance <- mean(mena_closest_cities$frontier_distance, na.rm = TRU
     ) +
     # Frontier line
     stat_smooth(data = frontier_cities,
-                aes(x = log(POPTOTT), y = log(GDP_per_capita)),
+                aes(x = log(POPTOTT), y = log(GDP)),
                 method = "lm", 
                 color = "darkgreen", 
                 se = FALSE) +
@@ -332,13 +332,13 @@ avg_frontier_distance <- mean(mena_closest_cities$frontier_distance, na.rm = TRU
     ) +
     expand_limits(
       x = range(log(data_frontier$POPTOTT)),
-      y = range(log(data_frontier$GDP_per_capita))
+      y = range(log(data_frontier$GDP))
     ) +
     scale_x_continuous(breaks = scales::pretty_breaks(n = 5)) +
     scale_y_continuous(breaks = scales::pretty_breaks(n = 7)) +
     coord_cartesian(clip = "off") +
     labs(x = "Log Population (2019)",
-         y = "Log GDP per capita, real, PPP adjusted (2019)",
+         y = "Log Total GDP, real, PPP adjusted (2019)",
          title = paste0("Economic Frontier Analysis: MENA ", 
                         " (Avg. Distance: ", round(avg_frontier_distance, 1), "%)"),
          subtitle = "Green points represent frontier cities, dark orange points show top 15 MENA cities in dataset")
@@ -400,8 +400,8 @@ create_frontier_plot <- function(data_frontier, frontier_cities, frontier_model,
     mutate(
       predicted_frontier = exp(predict(frontier_model, 
                                        newdata = data.frame(POPTOTT = POPTOTT))),
-      frontier_distance = ((GDP_per_capita - predicted_frontier) / predicted_frontier) * 100,
-      above_line = log(GDP_per_capita) > predict(frontier_model,
+      frontier_distance = ((GDP - predicted_frontier) / predicted_frontier) * 100,
+      above_line = log(GDP) > predict(frontier_model,
                                                  newdata = data.frame(POPTOTT = POPTOTT))
     )
   
@@ -413,27 +413,27 @@ create_frontier_plot <- function(data_frontier, frontier_cities, frontier_model,
     # Base cities (grey)
     geom_point(data = data_frontier %>% 
                  filter(!Country %in% country_group),
-               aes(x = log(POPTOTT), y = log(GDP_per_capita)), 
+               aes(x = log(POPTOTT), y = log(GDP)), 
                color = "grey90", 
                alpha = 0.2,
                size = 1) +
     
     # Group's cities
     geom_point(data = group_cities,
-               aes(x = log(POPTOTT), y = log(GDP_per_capita)), 
+               aes(x = log(POPTOTT), y = log(GDP)), 
                color = group_color,
                size = 2) +
     
     # Frontier cities (green)
     geom_point(data = frontier_cities,
-               aes(x = log(POPTOTT), y = log(GDP_per_capita)),
+               aes(x = log(POPTOTT), y = log(GDP)),
                color = '#90EE90', 
                size = 2.5,
                alpha = 0.8) +
     
     # Frontier line
     stat_smooth(data = frontier_cities,
-                aes(x = log(POPTOTT), y = log(GDP_per_capita)),
+                aes(x = log(POPTOTT), y = log(GDP)),
                 method = "lm", 
                 color = "darkgreen", 
                 se = FALSE,
@@ -443,7 +443,7 @@ create_frontier_plot <- function(data_frontier, frontier_cities, frontier_model,
     geom_text_repel(
       data = group_cities,
       aes(x = log(POPTOTT), 
-          y = log(GDP_per_capita), 
+          y = log(GDP), 
           label = paste0(Location, "\n(", round(frontier_distance, 1), "%)"),
           vjust = ifelse(above_line, -0.2, 1.2)),
       size = 3,
@@ -472,13 +472,13 @@ create_frontier_plot <- function(data_frontier, frontier_cities, frontier_model,
     ) +
     expand_limits(
       x = range(log(data_frontier$POPTOTT)),
-      y = range(log(data_frontier$GDP_per_capita))
+      y = range(log(data_frontier$GDP))
     ) +
     scale_x_continuous(breaks = scales::pretty_breaks(n = 5)) +
     scale_y_continuous(breaks = scales::pretty_breaks(n = 7)) +
     coord_cartesian(clip = "off") +
     labs(x = "Log Population (2019)",
-         y = "Log GDP per capita, real, PPP adjusted (2019)",
+         y = "Log Total GDP, real, PPP adjusted (2019)",
          title = paste0("Economic Frontier Analysis: ", group_name, 
                         " (Avg. Distance: ", round(avg_frontier_distance, 1), "%)"),
          subtitle = paste("Green points represent frontier cities,", 
