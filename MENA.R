@@ -252,7 +252,7 @@ mena_closest_cities <- results %>%
   mutate(
     percentile_rank = ntile(frontier_distance, 100)  # Calculate percentile
   ) %>%
-  filter(percentile_rank >= 15) %>%  # Select top 15
+  filter(percentile_rank >= 10) %>%  # Select top 10
   dplyr::select(Location, POPTOTT, GDPTOTPPPC, GDP, predicted_frontier, frontier_distance) %>%
   arrange(desc(frontier_distance))
 
@@ -281,7 +281,8 @@ avg_frontier_distance <- mean(mena_closest_cities$frontier_distance, na.rm = TRU
                  filter(!Location %in% mena_closest_cities$Location),
                aes(x = log(POPTOTT), y = log(GDP)), 
                color = "orange", 
-               alpha = 0.3) +
+               size = 3,
+               alpha = 0.5) +
     # Top 50% MENA cities (darker orange)
     geom_point(data = mena_closest_cities,
                aes(x = log(POPTOTT), y = log(GDP)),
