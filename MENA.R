@@ -265,6 +265,9 @@ mena_closest_cities <- mena_closest_cities %>%
                                                newdata = data.frame(POPTOTT = POPTOTT))
   )
 
+avg_frontier_distance <- mean(mena_closest_cities$frontier_distance, na.rm = TRUE)
+
+
 (frontier_plot <- ggplot() +
     # Base cities (grey)
     geom_point(data = results %>% 
@@ -336,7 +339,8 @@ mena_closest_cities <- mena_closest_cities %>%
     coord_cartesian(clip = "off") +
     labs(x = "Log Population (2019)",
          y = "Log GDP per capita, real, PPP adjusted (2019)",
-         title = "Economic Frontier Analysis",
+         title = paste0("Economic Frontier Analysis: MENA ", 
+                        " (Avg. Distance: ", round(avg_frontier_distance, 1), "%)"),
          subtitle = "Green points represent frontier cities, dark orange points show top 15 MENA cities in dataset")
   
 )
@@ -389,6 +393,21 @@ create_frontier_plot <- function(data_frontier, frontier_cities, frontier_model,
   print(paste("Number of cities in group:", 
               nrow(data_frontier %>% filter(Country %in% country_group))))
   
+  # Calculate frontier distances for the group cities
+  group_cities <- data_frontier %>% 
+    filter(Country %in% country_group) %>%
+    filter(Location != Country) %>%  # Only cities, not countries
+    mutate(
+      predicted_frontier = exp(predict(frontier_model, 
+                                       newdata = data.frame(POPTOTT = POPTOTT))),
+      frontier_distance = ((GDP_per_capita - predicted_frontier) / predicted_frontier) * 100,
+      above_line = log(GDP_per_capita) > predict(frontier_model,
+                                                 newdata = data.frame(POPTOTT = POPTOTT))
+    )
+  
+  # Calculate average frontier distance for the group
+  avg_frontier_distance <- mean(group_cities$frontier_distance, na.rm = TRUE)
+  
   # Create the plot
   ggplot() +
     # Base cities (grey)
@@ -400,9 +419,7 @@ create_frontier_plot <- function(data_frontier, frontier_cities, frontier_model,
                size = 1) +
     
     # Group's cities
-    geom_point(data = data_frontier %>% 
-                 filter(Country %in% country_group) %>%
-                 filter(Location != Country),  # Only cities, not countries
+    geom_point(data = group_cities,
                aes(x = log(POPTOTT), y = log(GDP_per_capita)), 
                color = group_color,
                size = 2) +
@@ -415,34 +432,33 @@ create_frontier_plot <- function(data_frontier, frontier_cities, frontier_model,
                alpha = 0.8) +
     
     # Frontier line
-    stat_smooth(data = frontier_cities %>%
-                  filter(log(POPTOTT) >= 6 & log(POPTOTT) <= 10),
+    stat_smooth(data = frontier_cities,
                 aes(x = log(POPTOTT), y = log(GDP_per_capita)),
                 method = "lm", 
                 color = "darkgreen", 
                 se = FALSE,
                 size = 0.5) +
-    # Labels for top group cities with smart placement
+    
+    # Labels for group cities
     geom_text_repel(
-      data = data_frontier %>% 
-        filter(Country %in% country_group) %>%
-        filter(Location != Country),  # Only cities, not countries
+      data = group_cities,
       aes(x = log(POPTOTT), 
           y = log(GDP_per_capita), 
           label = paste0(Location, "\n(", round(frontier_distance, 1), "%)"),
-          vjust = ifelse(above_line, -0.2, 1.2)),  # Adjust vertical position based on point location
+          vjust = ifelse(above_line, -0.2, 1.2)),
       size = 3,
       force = 10,
       box.padding = 0.8,
       point.padding = 0.3,
       max.overlaps = Inf,
-      direction = "y",    # Keep vertical direction for better spacing
+      direction = "y",
       segment.size = 0.3,
       segment.color = "grey50",
       segment.linetype = "dotted",
       min.segment.length = 0,
-      nudge_y = ifelse(mena_closest_cities$above_line, 0.8, -0.8)  # Push labels up or down based on point position
+      nudge_y = ifelse(group_cities$above_line, 0.8, -0.8)
     ) +
+    
     # Formatting
     theme_minimal() +
     theme(
@@ -463,7 +479,8 @@ create_frontier_plot <- function(data_frontier, frontier_cities, frontier_model,
     coord_cartesian(clip = "off") +
     labs(x = "Log Population (2019)",
          y = "Log GDP per capita, real, PPP adjusted (2019)",
-         title = paste("Economic Frontier Analysis:", group_name),
+         title = paste0("Economic Frontier Analysis: ", group_name, 
+                        " (Avg. Distance: ", round(avg_frontier_distance, 1), "%)"),
          subtitle = paste("Green points represent frontier cities,", 
                           tolower(group_name), "cities shown in",
                           case_when(
@@ -472,7 +489,6 @@ create_frontier_plot <- function(data_frontier, frontier_cities, frontier_model,
                             group_name == "Mashreq" ~ "blue"
                           )))
 }
-
 # Create the plots
 plots <- list(
   GCC = create_frontier_plot(data_frontier, frontier_cities, frontier_model,
@@ -497,3 +513,131 @@ walk2(
     dpi = 600
   )
 )
+
+# General comparison charts -----
+oe_mena <- oe_mena %>% 
+  mutate(POPTOTT = as.numeric(POPTOTT)) %>% 
+  mutate(GDPTOTUSC = as.numeric(GDPTOTUSC)) %>% 
+  mutate(GDP_per_capita_PPP = GDPTOTPPPC / POPTOTT) %>%
+  filter(Location != Country)
+
+## Population
+
+p01 <- generate_bar_plot(subset(oe_mena, Year == 2019), 
+                         x_var = "Location",
+                         y_var = "POPTOTT",
+                         x_lab = NULL,
+                         y_lab = "Population (millions)",
+                         orientation = "vertical",
+                         sort_bars = "descending",
+                         title = "Population of selected MENA cities, 2019",
+                         subtitle = "(millions)",
+                         show_values = TRUE,
+                         value_format = scales::label_number(
+                           unit = "m", 
+                           scale = 1e-3,
+                           accuracy = 0.1),
+                         source_text = "Oxford City Database, 2022",
+                         source_size = 10,
+                         rotate_x_labels = TRUE) 
+
+ggsave(filename = here::here("Output","MENA", "Total_Population_2019.png"),
+       plot = p01, width = 12, height = 15, dpi = 600)
+
+## GDP
+p02 <- generate_bar_plot(subset(oe_mena, Year == 2019), 
+                         x_var = "Location",
+                         y_var = "GDPTOTUSC",
+                         x_lab = NULL,
+                         y_lab = "GDP (millions)",
+                         orientation = "vertical",
+                         sort_bars = "descending",
+                         title = "GDP of selected MENA cities, 2019",
+                         subtitle = "Real, PPP adjusted (millions)",
+                         show_values = TRUE,
+                         value_format = scales::label_number(
+                           unit = "m", 
+                           scale = 1e-3,
+                           accuracy = 0.1),
+                         source_text = "Oxford City Database, 2022",
+                         source_size = 10,
+                         rotate_x_labels = TRUE) 
+
+ggsave(filename = here::here("Output","MENA", "Total_GDP_2019.png"),
+       plot = p02, width = 12, height = 15, dpi = 600)
+
+## GDP per capita
+p03 <- generate_bar_plot(subset(oe_mena, Year == 2019), 
+                         x_var = "Location",
+                         y_var = "GDP_per_capita_PPP",
+                         x_lab = NULL,
+                         y_lab = "GDP per capita (thousands)",
+                         orientation = "vertical",
+                         sort_bars = "descending",
+                         title = "GDP per capita of selected MENA cities, 2019",
+                         subtitle = "Real, PPP adjusted (thousands)",
+                         show_values = TRUE,
+                         value_format = scales::label_number(
+                           unit = "th", 
+                           scale = 1,
+                           accuracy = 0.1),
+                         source_text = "Oxford City Database, 2022",
+                         source_size = 10,
+                         rotate_x_labels = TRUE) 
+
+ggsave(filename = here::here("Output","MENA", "GDPpc_2019.png"),
+       plot = p03, width = 12, height = 15, dpi = 600)
+
+
+## GDP growth
+growth_rates <- oe_mena %>% 
+  dplyr::filter(Year %in% c(2001, 2019)) %>%
+  group_by(Location) %>%
+  mutate(GDP_growth = if_else(Year == 2019,
+                              (GDPTOTUSC[Year == 2019] - GDPTOTUSC[Year == 2001]) / GDPTOTUSC[Year == 2001],
+                              NA_real_)) %>%  # Only created in Location[Year == 2019]
+  dplyr::filter(Year == c(2001, 2019)) %>%
+  dplyr::select(Location, Year, GDP_growth)
+  # # 7 out of 51 cities have no data for 2001
+  # filter(Year == 2001 & is.na(GDPTOTUSC)) %>%
+  # View()
+
+# Find in which Year GDPTOTUSC has the least NA, before 2019
+# oe_mena %>%
+#   filter(Year < 2019) %>%
+#   group_by(Year) %>%
+#   summarize(
+#     na_count = sum(is.na(GDPTOTUSC)),
+#     total_rows = n(),
+#     percent_complete = (1 - na_count/total_rows) * 100
+#   ) %>%
+#   arrange(na_count) %>%
+#   View() # 2001, changing this in growth_rates calculations
+
+oe_mena <- oe_mena %>%
+  left_join(growth_rates, by = c("Location", "Year"))
+
+p04 <- generate_bar_plot(subset(oe_mena, Year == 2019) %>% 
+                           dplyr::filter(!is.na(GDP_growth)), 
+                         x_var = "Location",
+                         y_var = "GDP_growth",
+                         x_lab = NULL,
+                         y_lab = "GDP growth rate",
+                         orientation = "vertical",
+                         sort_bars = "descending",
+                         title = "GDP growth rate by selected MENA cities, 2001-2019",
+                         subtitle = "Percentage change between 2001-2019",
+                         show_values = TRUE,
+                         value_format = scales::label_number(
+                           unit = "%", 
+                           scale = 1,
+                           accuracy = 0.1,
+                           decimal.mark = "."),
+                         source_text = "Oxford City Database, 2022",
+                         source_size = 10,
+                         rotate_x_labels = TRUE) 
+
+ggsave(filename = here::here("Output","MENA", "GDP_growth_2001-2019.png"),
+       plot = p04, width = 12, height = 15, dpi = 600)
+
+
