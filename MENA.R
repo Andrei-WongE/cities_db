@@ -244,7 +244,7 @@ results <- data_frontier %>%
     frontier_distance = ((GDP_per_capita - predicted_frontier) / predicted_frontier) * 100
   )
 
-# Step 5: Calculate distances specifically for MENA cities #and find top 50%# all
+# Step 5: Calculate distances specifically for MENA cities and find top 50% all
 mena_closest_cities <- results %>%
   filter(Region== "MENA") %>%
   # Calculate distance to frontier (negative numbers mean below frontier)
@@ -518,7 +518,7 @@ walk2(
 oe_mena <- oe_mena %>% 
   mutate(POPTOTT = as.numeric(POPTOTT)) %>% 
   mutate(GDPTOTUSC = as.numeric(GDPTOTUSC)) %>% 
-  mutate(GDP_per_capita_PPP = GDPTOTPPPC / POPTOTT) %>%
+  mutate(GDP_per_capita_PPP = GDPTOTPPPC) %>%
   filter(Location != Country)
 
 ## Population
@@ -639,5 +639,417 @@ p04 <- generate_bar_plot(subset(oe_mena, Year == 2019) %>%
 
 ggsave(filename = here::here("Output","MENA", "GDP_growth_2001-2019.png"),
        plot = p04, width = 12, height = 15, dpi = 600)
+
+# Leading cities and comparators plots------
+# Get frontier cities in MENA
+frontier_cities_MENA <- mena_closest_cities %>% 
+  arrange(desc(frontier_distance)) %>%  
+  slice_head(n = 15) %>%               # Take the top 15 cities
+  pull("Location")                     
+
+# Get other not in frontier cities
+other_MENA_cities <- oe_mena %>% 
+  mutate(Region = case_when(
+    Country %in% mena_countries ~ "MENA",
+    TRUE ~ "Not_MENA"
+  )) %>% 
+  filter(Region == "MENA" & Year == 2019) %>% 
+  filter(!(Location %in% frontier_cities_MENA)) %>%
+  pull(Location)
+
+cities_list_MENA <- list(
+  Frontier_cities = frontier_cities_MENA,
+  Other_cities = other_MENA_cities
+)
+
+oe_comparators2 <- oe_mena
+
+oe_comparators2 <-
+  add_group_category(oe_comparators2, 
+                     categories = cities_list_MENA,
+                     var_col = "Location",
+                     new_col = "cities_list_MENA",
+                     warn_unmapped = TRUE)%>% 
+  dplyr::filter(cities_list_MENA != " ")
+
+## Population
+create_population_plot(subset(oe_comparators2, Year == 2019),
+                       location_var = "Location",
+                       category_var = "cities_list_MENA", 
+                       year_var = "Year", 
+                       variable_name = "POPTOTT",
+                       value_format = scales::label_number(
+                         scale = 1,
+                         accuracy = 1,
+                         big.mark = ",",
+                         decimal.mark = ".",
+                         suffix = "k"),
+                       title = "Total Population by Frontier Cities and Rest of MENA Cities Cities, 2019",
+                       subtitle = "Total population in thousands",
+                       source_text = "Oxford City Database, 2022",  
+                       source_size = 8,     
+                       x_label = NULL,
+                       y_label = "Total Population (thousands)",
+                       category_order = "as_is",
+                       within_group_order = "as_is",
+                       palette = "Zissou1",
+                       line_size = 1.2,
+                       label_size = 3,
+                       title_size = 16,  
+                       save_plot = TRUE,
+                       filename = "Total_Population_Frontier-Cities_Rest-of-MENA-Cities_2019.png",
+                       width = 10,
+                       height = 8
+)
+## GDP
+create_population_plot(subset(oe_comparators2, Year == 2019),
+                       location_var = "Location",
+                       category_var = "cities_list_MENA", 
+                       year_var = "Year", 
+                       variable_name = "GDPTOTUSC",
+                       value_format = scales::label_number(
+                         scale = 1,
+                         accuracy = NULL,
+                         big.mark = ",",
+                         decimal.mark = "."),
+                       title = "GDP by Frontier Cities and Rest of MENA Cities Cities, 2019",
+                       subtitle = NULL,
+                       source_text = "Oxford City Database, 2022",  
+                       source_size = 8,    
+                       x_label = NULL,
+                       y_label = "Real, PPP adjusted (millions)",
+                       category_order = "as_is",
+                       within_group_order = "as_is",
+                       palette = "Zissou1",
+                       line_size = 1.2,
+                       label_size = 3,
+                       title_size = 16,  
+                       save_plot = TRUE,
+                       filename = "Total_GDP_Frontier-Cities_Rest-of-MENA-Cities_2019.png",
+                       width = 10,
+                       height = 8
+)
+
+## GDP per capita
+create_population_plot(subset(oe_comparators2, Year == 2019),
+                       location_var = "Location",
+                       category_var = "cities_list_MENA", 
+                       year_var = "Year", 
+                       variable_name = "GDP_per_capita_PPP",
+                       value_format = scales::label_number(
+                         scale = 1,
+                         accuracy = 0.1,
+                         big.mark = ",",
+                         decimal.mark = "."),
+                       title = "GDP per capita by Frontier Cities and Rest of MENA Cities Cities, 2019",
+                       subtitle = NULL,
+                       source_text = "Oxford City Database, 2022",  
+                       source_size = 8,    
+                       x_label = NULL,
+                       y_label = "Real, PPP adjusted (thousands)",
+                       category_order = "as_is",
+                       within_group_order = "as_is",
+                       palette = "Zissou1",
+                       line_size = 1.2,
+                       label_size = 3,
+                       title_size = 16,  
+                       save_plot = TRUE,
+                       filename = "GDP_per_capita_Frontier-Cities_Rest-of-MENA-Cities_2019.png",
+                       width = 10,
+                       height = 8
+)
+
+## GDP growth
+growth_rates_comparators2 <- oe_comparators2 %>% 
+  dplyr::filter(Year %in% c(2001, 2019)) %>%
+  group_by(Location) %>%
+  mutate(GDP_growth = if_else(Year == 2019,
+                              (GDPTOTUSC[Year == 2019]/GDPTOTUSC[Year == 2001])^(1/18) - 1,  # CAGR formula
+                              NA_real_)) %>%
+  dplyr::filter(Year == c(2001, 2019)) %>%
+  dplyr::select(Location, Year, GDP_growth)
+
+# Find in which Year GDPTOTUSC has the least NA, before 2019
+# oe_comparators2 %>%
+#   filter(Year < 2019) %>%
+#   filter(cities_list_MENA != " ") %>%
+#   group_by(Year) %>%
+#   summarize(
+#     na_count = sum(is.na(GDPTOTUSC)),
+#     total_rows = n(),
+#     percent_complete = (1 - na_count/total_rows) * 100
+#   ) %>%
+#   arrange(na_count) %>%
+#   View() # 2001, only 1 missing, changing this in growth_rates calculation
+
+# oe_comparators2 %>%
+#   filter(cities_list_MENA != " ") %>%
+#   summarise(total_rows = n(),
+#             missing_gdp = sum(is.na(GDP_growth)),
+#             pct_missing = round(sum(is.na(GDP_growth))/n()*100, 1)) %>%
+#   glimpse()
+
+oe_comparators2 <- oe_comparators2 %>%
+  left_join(growth_rates_comparators2, by = c("Location", "Year"))
+
+create_population_plot(subset(oe_comparators2, Year == 2019),
+                       location_var = "Location",
+                       category_var = "cities_list_MENA", 
+                       year_var = "Year", 
+                       variable_name = "GDP_growth",
+                       value_format = scales::label_number(
+                         unit = "%", 
+                         scale = 100,
+                         accuracy = 0.01,
+                         decimal.mark = ".",
+                         suffix = "%"),
+                       title = "GDP growth rate by Frontier Cities and Rest of MENA Cities Cities, 2001-2019",
+                       subtitle = "Compound Average Growth Rate (CAGR)",
+                       source_text = "Oxford City Database, 2022",  
+                       source_size = 8,    
+                       x_label = NULL,
+                       y_label = "Percentage change between 2001-2019",
+                       category_order = "as_is",
+                       within_group_order = "as_is",
+                       palette = "Zissou1",
+                       line_size = 1.2,
+                       label_size = 3,
+                       title_size = 16,  
+                       save_plot = TRUE,
+                       filename = "GDP_growth_Frontier-Cities_Rest-of-MENA-Cities_2001-2019.png",
+                       width = 10,
+                       height = 8
+)
+
+## Structure of GVA
+oe_comparators2 <- oe_comparators2 %>%
+  mutate(GVATOTPPPC = as.numeric(GVATOTPPPC),
+         GVAGIR_UPPPC = as.numeric(GVAGIR_UPPPC),
+         GVAAPPPC = as.numeric(GVAAPPPC),
+         GVAK_NPPPC = as.numeric(GVAK_NPPPC),
+         GVAB_FPPPC = as.numeric(GVAB_FPPPC),
+         GVAO_QPPPC = as.numeric(GVAO_QPPPC),
+         GVAHJPPPC = as.numeric(GVAHJPPPC),
+  ) %>%
+  mutate(Agriculture_GVA_Pct = GVAAPPPC / GVATOTPPPC
+         , Consumer_services_GVA_Pct = GVAGIR_UPPPC / GVATOTPPPC
+         , Financial_business_services_GVA_Pct = GVAK_NPPPC / GVATOTPPPC
+         , Industry_GVA_Pct = GVAB_FPPPC / GVATOTPPPC          
+         , Public_services_GVA_Pct =  GVAO_QPPPC / GVATOTPPPC 
+         , Transport_Information_Communic_Services_GVA_Pct =  GVAHJPPPC / GVATOTPPPC
+  ) # Decimal format
+
+# Find in which Year sector vars have the least NA, before 2019
+# oe_comparators2 %>%
+#   filter(Year < 2020) %>%
+#   filter(cities_list_MENA != " ") %>%
+#   group_by(Year) %>%
+#   summarize(across(ends_with("GVA_Pct"), 
+#                    ~sum(is.na(.)), 
+#                    .names = "{.col}_NA"),
+#             total_rows = n()) %>%
+#   arrange(Year) %>% 
+#   View()
+
+
+
+columns_to_pivot <- c("Agriculture_GVA_Pct", "Consumer_services_GVA_Pct",
+                      "Financial_business_services_GVA_Pct", "Industry_GVA_Pct",
+                      "Public_services_GVA_Pct", "Transport_Information_Communic_Services_GVA_Pct")
+
+# Check that percentage columns sum to 100% for each location and year
+# pie_data_check  <- oe_comparators2 %>%
+#   pivot_longer(cols = all_of(columns_to_pivot), names_to = "Sector", values_to = "Percentage") %>%
+#   group_by(Location, Year) %>%
+#   mutate(Total = sum(Percentage)) %>%
+#   filter(abs(Total - 100) > 1) %>% 
+#   dplyr::select(Year, Location, Sector, Percentage, Total) %>%
+# # Filter for locations/years where total isn't within 0.1% of 100%
+#   View()
+
+# Check number of columns per Location and Year
+# pie_data_check <- oe_comparators2 %>%
+#   pivot_longer(cols = all_of(columns_to_pivot), names_to = "Sector", values_to = "Percentage") %>%
+#   group_by(Location, Year) %>%
+#   summarize(num_cols = n_distinct(Sector)) %>% 
+#   filter(num_cols != 6) %>% 
+#   View()
+
+# Only 2019
+# Filter data for 2019
+pie_data <- oe_comparators2 %>%
+  pivot_longer(cols = all_of(columns_to_pivot), names_to = "Sector", values_to = "Percentage") %>% 
+  filter(Year == 2019)
+
+# Ensure percentages sum to 100 for each location
+pie_data <- pie_data %>%
+  group_by(Location) %>%
+  mutate(Total = sum(Percentage)) %>%
+  mutate(Percentage = Percentage / Total * 100) %>%
+  mutate(Sector = str_remove(Sector, "_GVA_Pct"),
+         Sector = str_replace_all(Sector, "_", " ")) %>% 
+  ungroup() 
+
+# Create a single plot with all locations
+p05  <- ggplot(pie_data, aes(x = Location, y = Percentage, fill = Sector)) +
+  geom_bar(stat = "identity", position = "stack") +
+  scale_fill_manual(values = c(wes_palette("Zissou1", n = length(unique(pie_data$Sector)), type = "continuous"), "#D3D3D3")) +
+  scale_y_continuous(labels = scales::percent_format(scale = 1), 
+                     breaks = seq(0, 100, 20)) +
+  facet_wrap(~cities_list_MENA, scales = "free_x", ncol = 1) +
+  labs(title = "GVA Contribution by Frontier Cities and Rest of MENA Cities Cities, 2019",
+       x = NULL,
+       y = "Percentage",
+       fill = "Sector") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16, face = "bold"),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10, face = "bold"),
+    axis.text.y = element_text(size = 10),
+    legend.position = "right",
+    legend.text = element_text(size = 8),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank(),
+    strip.text = element_text(size = 12, face = "bold")
+  ) +
+  geom_text(aes(label = ifelse(Percentage >= 5, paste0(round(Percentage, 1), "%"), "")), 
+            position = position_stack(vjust = 0.5), 
+            size = 3, color = "white")
+
+# Add percentage labels
+p05  <- p05  + geom_text(aes(label = ifelse(Percentage >= 5, paste0(round(Percentage, 1), "%"), "")), 
+                         position = position_stack(vjust = 0.5), 
+                         size = 3, color = "white")
+
+# Save the plot
+ggsave(
+  filename = here::here("Output", "MENA", "GVA_Sector_Frontier-Cities_Rest-of-MENA-Cities_2019.png"), 
+  plot = p05, 
+  width = 18,
+  height = 12,
+  dpi = 600
+)
+
+# For each city, for 2001-2019
+
+# Create a plot for each location
+create_gva_visualizations <- function(data, year_range = c(2001, 2019), 
+                                      output_dir = here::here("Output", "MENA")) {
+  
+  # Data preparation
+  pie_data <- data %>%
+    pivot_longer(
+      cols = ends_with("_GVA_Pct"), 
+      names_to = "Sector", 
+      values_to = "Percentage"
+    ) %>%
+    filter(between(Year, year_range[1], year_range[2])) %>%
+    mutate(
+      Sector = str_remove(Sector, "_GVA_Pct"),
+      Sector = str_replace_all(Sector, "_", " "),
+      Year = as.numeric(Year)
+    )
+  
+  # Create directory if it doesn't exist
+  dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+  
+  # Function to create single location plot
+  create_location_plot <- function(loc_data) {
+    # Get location name
+    location <- unique(loc_data$Location)
+    
+    # Get years for labels
+    start_year <- min(loc_data$Year)
+    end_year <- max(loc_data$Year)
+    
+    # Prepare label data with correct positioning
+    label_data <- loc_data %>%
+      group_by(Year) %>%
+      arrange(Year, desc(Sector)) %>%  # Important: consistent ordering
+      mutate(
+        # Calculate cumulative percentages for area positions
+        ymax = cumsum(Percentage),
+        ymin = lag(ymax, default = 0),
+        pos = (ymax + ymin) / 2,  # Center position for labels
+        perc = scales::percent(Percentage, accuracy = 0.1)
+      ) %>%
+      ungroup()
+    
+    # Create plot
+    p <- ggplot(loc_data, aes(x = Year, y = Percentage, fill = Sector)) +
+      geom_area(position = "fill", alpha = 0.8) +
+      scale_fill_manual(
+        values = c(
+          wes_palette("Zissou1", n = length(unique(loc_data$Sector)), 
+                      type = "continuous"), 
+          "#D3D3D3"
+        )
+      ) +
+      labs(
+        title = paste("GVA Contribution by Sector in", location, 
+                      paste0("(", start_year, "-", end_year, ")")),
+        x = NULL,
+        y = "Percentage",
+        fill = "Sector"
+      ) +
+      theme_minimal() +
+      theme(
+        plot.title = element_text(size = 14, face = "bold"),
+        axis.text.x = element_text(angle = 45, hjust = 1, size = 8, 
+                                   face = "bold"),
+        legend.position = "bottom",
+        legend.title = element_blank()
+      ) +
+      scale_y_continuous(labels = scales::percent_format()) +
+      scale_x_continuous(breaks = unique(loc_data$Year)) +
+      # Add labels and connecting lines with corrected positioning
+      geom_text(
+        data = label_data %>% 
+          filter(Year == start_year | Year == end_year),
+        aes(x = Year, y = pos, label = perc, group = Sector,
+            hjust = ifelse(Year == start_year, 1.1, -0.1)),  # Adjusted hjust
+        size = 3,
+        fontface = "bold"
+      ) +
+      geom_line(
+        data = label_data %>% 
+          filter(Year == start_year | Year == end_year),
+        aes(x = Year, y = pos, group = Sector),
+        linetype = "dotted", 
+        color = "gray50"
+      )
+    
+    # Save plot
+    filename <- paste0(
+      "GVA_Sector_Frontier-Cities_Rest-of-MENA-Cities_", 
+      start_year, "-", end_year, "_",
+      gsub(" ", "_", location), 
+      ".png"
+    )
+    
+    ggsave(
+      filename = file.path(output_dir, filename),
+      plot = p,
+      width = 12,
+      height = 8,
+      dpi = 600
+    )
+    
+    return(p)
+  }
+  
+  # Create plots for each location
+  plots <- pie_data %>%
+    group_by(Location) %>%
+    group_map(~ create_location_plot(.x), .keep = TRUE)
+  
+  return(plots)
+}
+
+create_gva_visualizations(oe_comparators2
+                          , year_range = c(2001, 2019)
+                          , output_dir = here::here("Output", "MENA")
+)
+
 
 
