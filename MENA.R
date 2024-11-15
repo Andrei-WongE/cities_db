@@ -231,10 +231,9 @@ frontier_cities <- data_frontier %>%
 View(frontier_cities)
 
 # Step 3: Estimate frontier regression
-frontier_model <- lm(log(GDP) ~ log(POPTOTT), data = frontier_cities)
+frontier_model <- lm(log(GDP) ~ log(POPTOTT), data = data_frontier)
 
 # Step 4: Calculate distances to frontier for all cities
-# Create the labeled data
 results <- data_frontier %>%
   mutate(
     # Predicted frontier GDP for each city's population
@@ -245,121 +244,146 @@ results <- data_frontier %>%
   )
 
 # Step 5: Calculate distances specifically for MENA cities and find top 10% all
-unique_deciles <- unique(quantile(data_frontier$POPTOTT
-                                 , probs = seq(0, 1, 0.1)
-                                 , na.rm = TRUE))
-
-mena_closest_cities <- results %>%
-  filter(Region== "MENA") %>%
-  dplyr::filter(!is.na(GDP)) %>%
-  arrange(POPTOTT) %>%
-  mutate(pop_percentile = cut(POPTOTT, 
-                              breaks = c(unique_deciles[1], unique_deciles[-1] + 1e-7),
-                              include.lowest = TRUE, labels = FALSE)) %>%
-  group_by(pop_percentile) %>%
-  slice_max(GDP, n = 1) %>%
-  ungroup() 
-
-# mena_closest_cities <- mena_closest_cities %>%
-#   # Calculate distance to frontier (negative numbers mean below frontier)
-#   arrange(desc(frontier_distance)) %>%  # Sort from smallest gap to largest
-#   # mutate(
-#   #   percentile_rank = ntile(frontier_distance, 100)  # Calculate percentile
-#   # ) %>%
-#   # filter(percentile_rank >= 10) %>%  # Select top 10
-#   dplyr::select(Location, POPTOTT, GDPTOTPPPC, GDP, predicted_frontier, frontier_distance) %>%
-#   arrange(desc(frontier_distance))
-
-View(mena_closest_cities)
+# unique_deciles <- unique(quantile(data_frontier$POPTOTT
+#                                  , probs = seq(0, 1, 0.1)
+#                                  , na.rm = TRUE))
+# 
+# mena_closest_cities <- results %>%
+#   filter(Region== "MENA") %>%
+#   dplyr::filter(!is.na(GDP)) %>%
+#   arrange(POPTOTT) %>%
+#   mutate(pop_percentile = cut(POPTOTT, 
+#                               breaks = c(unique_deciles[1], unique_deciles[-1] + 1e-7),
+#                               include.lowest = TRUE, labels = FALSE)) %>%
+#   group_by(pop_percentile) %>%
+#   slice_max(GDP, n = 1) %>%
+#   ungroup() 
+# 
+# # mena_closest_cities <- mena_closest_cities %>%
+# #   # Calculate distance to frontier (negative numbers mean below frontier)
+# #   arrange(desc(frontier_distance)) %>%  # Sort from smallest gap to largest
+# #   # mutate(
+# #   #   percentile_rank = ntile(frontier_distance, 100)  # Calculate percentile
+# #   # ) %>%
+# #   # filter(percentile_rank >= 10) %>%  # Select top 10
+# #   dplyr::select(Location, POPTOTT, GDPTOTPPPC, GDP, predicted_frontier, frontier_distance) %>%
+# #   arrange(desc(frontier_distance))
+# 
+# View(mena_closest_cities)
 
 # Calculate if points are above or below frontier line
-mena_closest_cities <- mena_closest_cities %>%
-  filter(Region== "MENA") %>%
+# mena_closest_cities <- mena_closest_cities %>%
+#   filter(Region== "MENA") %>%
+#   mutate(
+#     above_line = log(GDP) > predict(frontier_model,
+#                                                newdata = data.frame(POPTOTT = POPTOTT))
+#   )
+# 
+# avg_frontier_distance <- mean(mena_closest_cities$frontier_distance, na.rm = TRUE)
+
+closest_cities <- results %>%
+  # filter(Region== "MENA") %>%
   mutate(
-    above_line = log(GDP) > predict(frontier_model,
-                                               newdata = data.frame(POPTOTT = POPTOTT))
+    above_line = resid(frontier_model) > 0  
   )
 
-avg_frontier_distance <- mean(mena_closest_cities$frontier_distance, na.rm = TRUE)
-
+# Average distance to frontier of ALL cities
+avg_frontier_distance <- mean(results$frontier_distance, na.rm = TRUE) 
 
 (frontier_plot <- ggplot() +
-    # Base cities (grey)
-    geom_point(data = results %>% 
-               filter(Region != "MENA"),
-               aes(x = log(POPTOTT), y = log(GDP)), 
-               color = "grey", 
-               alpha = 0.3) +
-    # All MENA cities (light orange)
-    geom_point(data = results %>% 
-                 filter(Region == "MENA") %>%
-                 filter(!Location %in% mena_closest_cities$Location),
-               aes(x = log(POPTOTT), y = log(GDP)), 
-               color = "orange", 
-               size = 3,
-               alpha = 0.5) +
-    # Top 50% MENA cities (darker orange)
-    geom_point(data = mena_closest_cities,
-               aes(x = log(POPTOTT), y = log(GDP)),
-               color = "darkorange",
-               size = 3,
-               alpha = 0.7) +
-    # Frontier cities (green)
-    geom_point(data = frontier_cities %>% 
-               filter(Region != "MENA"), # As some MENA cities are above frontier
-               aes(x = log(POPTOTT), y = log(GDP)),
-               color = 'lightgreen', 
+  # Non-MENA frontier cities
+  geom_point(data = frontier_cities %>% filter(Region != "MENA"),
+             aes(x = log(POPTOTT), y = log(GDP), color = "Non-MENA frontier"), 
+             size = 3, alpha = 0.7) +
+  # MENA frontier cities
+  geom_point(data = frontier_cities %>% filter(Region == "MENA"),
+               aes(x = log(POPTOTT), y = log(GDP), fill = "MENA frontier"), 
+               shape = 21,
                size = 3, 
-               alpha = 0.7) +
-    # Labels for top 50% MENA cities with smart placement
-    geom_text_repel(
-      data = mena_closest_cities,
-      aes(x = log(POPTOTT), 
-          y = log(GDP), 
-          label = paste0(Location, "\n(", round(frontier_distance, 1), "%)"),
-          vjust = ifelse(above_line, -0.2, 1.2)),  # Adjust vertical position based on point location
-      size = 3,
-      force = 10,
-      box.padding = 0.8,
-      point.padding = 0.3,
-      max.overlaps = Inf,
-      direction = "y",    # Keep vertical direction for better spacing
-      segment.size = 0.3,
-      segment.color = "grey50",
-      segment.linetype = "dotted",
-      min.segment.length = 0,
-      nudge_y = ifelse(mena_closest_cities$above_line, 0.8, -0.8)  # Push labels up or down based on point position
-    ) +
-    # Frontier line
-    stat_smooth(data = frontier_cities,
-                aes(x = log(POPTOTT), y = log(GDP)),
-                method = "lm", 
-                color = "darkgreen", 
-                se = FALSE) +
-    theme_minimal() +
-    theme(
-      plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
-      plot.subtitle = element_text(hjust = 0.5),
-      axis.title.x = element_text(face = "bold"),
-      axis.title.y = element_text(face = "bold"),
-      axis.text.x = element_text(face = "plain"),
-      axis.text.y = element_text(face = "plain"),
-      legend.position = "none",
-      plot.margin = margin(t = 1, r = 2, b = 1, l = 1, unit = "cm")
-    ) +
-    expand_limits(
-      x = range(log(data_frontier$POPTOTT)),
-      y = range(log(data_frontier$GDP))
-    ) +
-    scale_x_continuous(breaks = scales::pretty_breaks(n = 5)) +
-    scale_y_continuous(breaks = scales::pretty_breaks(n = 7)) +
-    coord_cartesian(clip = "off") +
-    labs(x = "Log Population (2019)",
-         y = "Log Total GDP, real, PPP adjusted (2019)",
-         title = paste0("Economic Frontier Analysis: MENA ", 
-                        " (Avg. Distance: ", round(avg_frontier_distance, 1), "%)"),
-         subtitle = "Green points represent frontier cities, dark orange points show top 15 MENA cities in dataset")
-  
+               alpha = 0.7,
+               color = "black"
+             , stroke = 0.5) +
+  # MENA cities above frontier but NOT frontier cities
+  geom_point(data = closest_cities %>% 
+               filter(Region == "MENA", above_line == TRUE, 
+                      !Location %in% frontier_cities$Location),
+             aes(x = log(POPTOTT), y = log(GDP), color = "MENA above frontier"),
+             size = 3, alpha = 0.7) +
+  # Other MENA cities
+  geom_point(data = closest_cities %>% 
+               filter(Region == "MENA", above_line == FALSE, 
+                      !Location %in% frontier_cities$Location),
+             aes(x = log(POPTOTT), y = log(GDP), color = "Other MENA"),
+             size = 3, alpha = 0.9) +
+  # Non-MENA, non-frontier cities
+  geom_point(data = results %>% 
+               filter(Region != "MENA", !Location %in% frontier_cities$Location),
+             aes(x = log(POPTOTT), y = log(GDP), color = "Non-MENA non-frontier"),
+             size = 2, alpha = 0.5) +
+  # Labels for MENA frontier cities
+  geom_text_repel(
+    data = results %>% 
+      filter(Location %in% (frontier_cities %>% 
+                             filter(Region == "MENA") %>% 
+                             pull(Location))),
+    aes(x = log(POPTOTT), 
+        y = log(GDP), 
+        label = paste0(Location, "\n(", round(frontier_distance, 1), "%)")),
+    size = 3, force = 10, box.padding = 0.8,
+    point.padding = 0.3, max.overlaps = Inf,
+    direction = "y", segment.size = 0.3,
+    segment.color = "grey50", segment.linetype = "dotted",
+    min.segment.length = 0, nudge_y = 0.8
+  ) +
+  # Labels for MENA cities above frontier but not frontier cities
+  geom_text_repel(
+    data = closest_cities %>% 
+      filter(Region == "MENA", above_line == TRUE, 
+             !Location %in% frontier_cities$Location),
+    aes(x = log(POPTOTT), 
+        y = log(GDP), 
+        label = paste0(Location, "\n(", round(frontier_distance, 1), "%)")),
+    size = 3, force = 10, box.padding = 0.8,
+    point.padding = 0.3, max.overlaps = Inf,
+    direction = "y", segment.size = 0.3,
+    segment.color = "grey50", segment.linetype = "dotted",
+    min.segment.length = 0, nudge_y = -0.8
+  ) +
+  # Frontier line
+  stat_smooth(data = data_frontier,
+             aes(x = log(POPTOTT), y = log(GDP)),
+             method = "lm", color = "darkgreen", se = FALSE) +
+  # Scales and labels
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 5)) +
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 7)) +
+  coord_cartesian(clip = "off") +
+  labs(x = "Log Population (2019)",
+       y = "Log Total GDP, real, PPP adjusted (2019)",
+       title = paste0("Economic Frontier Analysis: MENA ",
+                     "(Avg. Distance: ", round(avg_frontier_distance, 1), "%)"),
+       subtitle = "Showing frontier cities and MENA cities with their distance to frontier line") +
+  # Theme
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5),
+    axis.title = element_text(face = "bold"),
+    legend.position = c(0.2, 0.8),
+    legend.background = element_rect(fill = "white", color = "gray80"),
+    legend.margin = margin(5, 5, 5, 5),
+    plot.margin = margin(1, 2, 1, 1, unit = "cm")
+  ) +
+  # Color scale
+  scale_color_manual(
+    values = c(
+      "Non-MENA frontier" = "#117a65",
+      "MENA frontier" = "#abebc6",
+      "MENA above frontier" = "#a04000",
+      "Other MENA" = "#FFA07A",
+      "Non-MENA non-frontier" = "#7fb3d5"
+    ),
+    name = NULL
+  )
 )
 
 ggsave(filename = here::here("Output","MENA", "Frontier-Cities_2019_MENA.png"),
