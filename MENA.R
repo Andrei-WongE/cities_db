@@ -69,11 +69,11 @@ oe_mena %>% filter(Country!=Location) %>%
   distinct(.$Location) %>% 
   View() %>% #51 (not considering national level)
 
-mismatches <- oe_mena %>%
-  filter(Country != matched_country) %>%
-  dplyr::select(Country, matched_country) %>%
-  distinct() %>% 
-  print()
+# mismatches <- oe_mena %>%
+#   filter(Country != matched_country) %>%
+#   dplyr::select(Country, matched_country) %>%
+#   distinct() %>% 
+#   print()
 
 oe_mena %>% filter(Country != Location) %>% pull(Location) %>% 
   unique()
@@ -289,6 +289,8 @@ closest_cities <- results %>%
 
 # Average distance to frontier of ALL cities
 avg_frontier_distance <- mean(results$frontier_distance, na.rm = TRUE) 
+avg_frontier_distance_MENA <- mean(results$frontier_distance[results$Region == "MENA"], na.rm = TRUE) 
+
 
 (frontier_plot <- ggplot() +
   # Non-MENA frontier cities
@@ -297,12 +299,8 @@ avg_frontier_distance <- mean(results$frontier_distance, na.rm = TRUE)
              size = 3, alpha = 0.7) +
   # MENA frontier cities
   geom_point(data = frontier_cities %>% filter(Region == "MENA"),
-               aes(x = log(POPTOTT), y = log(GDP), fill = "MENA frontier"), 
-               shape = 21,
-               size = 3, 
-               alpha = 0.7,
-               color = "black"
-             , stroke = 0.5) +
+             aes(x = log(POPTOTT), y = log(GDP), color = "MENA frontier"),
+             shape = 21, size = 3, alpha = 0.7) +
   # MENA cities above frontier but NOT frontier cities
   geom_point(data = closest_cities %>% 
                filter(Region == "MENA", above_line == TRUE, 
@@ -354,14 +352,14 @@ avg_frontier_distance <- mean(results$frontier_distance, na.rm = TRUE)
              aes(x = log(POPTOTT), y = log(GDP)),
              method = "lm", color = "darkgreen", se = FALSE) +
   # Scales and labels
-  scale_x_continuous(breaks = scales::pretty_breaks(n = 5)) +
-  scale_y_continuous(breaks = scales::pretty_breaks(n = 7)) +
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 7)) +
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 10)) +
   coord_cartesian(clip = "off") +
   labs(x = "Log Population (2019)",
        y = "Log Total GDP, real, PPP adjusted (2019)",
        title = paste0("Economic Frontier Analysis: MENA ",
                      "(Avg. Distance: ", round(avg_frontier_distance, 1), "%)"),
-       subtitle = "Showing frontier cities and MENA cities with their distance to frontier line") +
+       subtitle = "Frontier MENA cities and high performing MENA cities with their distance to frontier line") +
   # Theme
   theme_minimal() +
   theme(
@@ -427,50 +425,46 @@ country_groups <- list(
 
 # Function to create frontier plot for a specific group
 create_frontier_plot <- function(data_frontier, frontier_cities, frontier_model,
-                                 country_group, group_name, group_color = "darkorange") {
+                                 country_groups, group_name, group_color = "darkorange") {
   
   # Print for debugging
   print(paste("Processing", group_name))
   print(paste("Number of cities in group:", 
-              nrow(data_frontier %>% filter(Country %in% country_group))))
+              nrow(data_frontier %>% filter(Country %in% country_groups))))
   
-  # Calculate frontier distances for the group cities
-  group_cities <- data_frontier %>% 
-    filter(Country %in% country_group) %>%
-    filter(Location != Country) %>%  # Only cities, not countries
+  # Calculate if cities are above the frontier line
+  group_cities <- results %>%
     mutate(
-      predicted_frontier = exp(predict(frontier_model, 
-                                       newdata = data.frame(POPTOTT = POPTOTT))),
-      frontier_distance = ((GDP - predicted_frontier) / predicted_frontier) * 100,
-      above_line = log(GDP) > predict(frontier_model,
-                                                 newdata = data.frame(POPTOTT = POPTOTT))
+      above_line = resid(frontier_model) > 0  
     )
-  
   # Calculate average frontier distance for the group
-  avg_frontier_distance <- mean(group_cities$frontier_distance, na.rm = TRUE)
+  avg_frontier_distance_country_group <- mean(group_cities$frontier_distance[group_cities$Country %in% country_groups], na.rm = TRUE)
+  count_country_group <- nrow(data_frontier %>% filter(Country %in% country_groups))
   
   # Create the plot
   ggplot() +
     # Base cities (grey)
     geom_point(data = data_frontier %>% 
-                 filter(!Country %in% country_group),
+                 filter(!Country %in% country_groups) %>% 
+                 filter(!Location %in% frontier_cities$Location),
                aes(x = log(POPTOTT), y = log(GDP)), 
                color = "grey90", 
-               alpha = 0.2,
-               size = 1) +
-    
-    # Group's cities
-    geom_point(data = group_cities,
-               aes(x = log(POPTOTT), y = log(GDP)), 
-               color = group_color,
+               alpha = 0.8,
                size = 2) +
-    
-    # Frontier cities (green)
+   
+     # Frontier cities (green)
     geom_point(data = frontier_cities,
                aes(x = log(POPTOTT), y = log(GDP)),
                color = '#90EE90', 
-               size = 2.5,
-               alpha = 0.8) +
+               size = 4,
+               alpha = 0.9) +  
+    
+    # Group's cities
+    geom_point(data = data_frontier %>% filter(Country %in% country_groups),
+               aes(x = log(POPTOTT), y = log(GDP)), 
+               color = group_color,
+               size = 2,
+               alpha = 0.7) +
     
     # Frontier line
     stat_smooth(data = frontier_cities,
@@ -482,7 +476,7 @@ create_frontier_plot <- function(data_frontier, frontier_cities, frontier_model,
     
     # Labels for group cities
     geom_text_repel(
-      data = group_cities,
+      data = group_cities %>% filter(Country %in% country_groups),
       aes(x = log(POPTOTT), 
           y = log(GDP), 
           label = paste0(Location, "\n(", round(frontier_distance, 1), "%)"),
@@ -521,7 +515,7 @@ create_frontier_plot <- function(data_frontier, frontier_cities, frontier_model,
     labs(x = "Log Population (2019)",
          y = "Log Total GDP, real, PPP adjusted (2019)",
          title = paste0("Economic Frontier Analysis: ", group_name, 
-                        " (Avg. Distance: ", round(avg_frontier_distance, 1), "%)"),
+                        " (Avg. Distance: ", round(avg_frontier_distance_country_group, 1), "%, N=", count_country_group, ")"),
          subtitle = paste("Green points represent frontier cities,", 
                           tolower(group_name), "cities shown in",
                           case_when(
