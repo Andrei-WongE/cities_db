@@ -349,7 +349,7 @@ avg_frontier_distance_MENA <- mean(results$frontier_distance[results$Region == "
     min.segment.length = 0, nudge_y = -0.8
   ) +
   # Frontier line
-  stat_smooth(data = data_frontier %>% filter(Location %in% frontier_cities$Location),
+  stat_smooth(data = data_frontier,
              aes(x = log(POPTOTT), y = log(GDP)),
              method = "lm", color = "darkgreen", se = FALSE) +
   # Scales and labels
