@@ -293,6 +293,11 @@ avg_frontier_distance_MENA <- mean(results$frontier_distance[results$Region == "
 
 
 (frontier_plot <- ggplot() +
+  # Non-MENA, non-frontier cities
+  geom_point(data = results %>% 
+               filter(Region != "MENA", !Location %in% frontier_cities$Location),
+             aes(x = log(POPTOTT), y = log(GDP), color = "Non-MENA non-frontier"),
+             size = 2, alpha = 0.8) + 
   # Non-MENA frontier cities
   geom_point(data = frontier_cities %>% filter(Region != "MENA"),
              aes(x = log(POPTOTT), y = log(GDP), color = "Non-MENA frontier"), 
@@ -313,11 +318,7 @@ avg_frontier_distance_MENA <- mean(results$frontier_distance[results$Region == "
                       !Location %in% frontier_cities$Location),
              aes(x = log(POPTOTT), y = log(GDP), color = "Other MENA"),
              size = 3, alpha = 0.9) +
-  # Non-MENA, non-frontier cities
-  geom_point(data = results %>% 
-               filter(Region != "MENA", !Location %in% frontier_cities$Location),
-             aes(x = log(POPTOTT), y = log(GDP), color = "Non-MENA non-frontier"),
-             size = 2, alpha = 0.8) +
+
   # Labels for MENA frontier cities
   geom_text_repel(
     data = results %>% 
