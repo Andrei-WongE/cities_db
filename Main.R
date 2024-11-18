@@ -1572,11 +1572,7 @@ p31 <- ggplot(pie_data21, aes(x = reorder(Location, -Percentage)
 # Save the plot
 ggsave(filename = here::here("Figures", "Share_Employment_2019_FINAL.png"),
        plot = p31, width = 12, height = 8)
-Oct 8, 2024
-Added sector productivity
 
-Oct 11, 2024
-Corrected errors and cleaned data
 ### National employment by sector, 2019----
 # Only Colombo, raw total
 data_merged <- data_merged %>%
@@ -1588,11 +1584,7 @@ data_merged <- data_merged %>%
     Agriculture_Emp = EMPA,
     Transport_Information_Communic_Services_Emp = EMPHJ
   )
-Oct 8, 2024
-Added sector productivity
 
-Oct 11, 2024
-Corrected errors and cleaned data
 data_merged <- data_merged %>%
   group_by(Country, Year) %>%
   mutate(
