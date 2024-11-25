@@ -5,59 +5,7 @@ require(dplyr)
 require(tidyr)
 require(stringr)
 
-show_in_excel <- function(.data){
-  require(writexl)
-  tmp <- paste0(tempfile(), ".xlsx")
-  # If .data is a list of data frames, write as separate sheets
-  if(is.list(.data) && !is.data.frame(.data)) {
-    writexl::write_xlsx(x = setNames(.data, paste0("Sheet", seq_along(.data))), path = tmp)
-  } else {
-    writexl::write_xlsx(x = .data, path = tmp)
-  }
-  browseURL(tmp)
-}
-
-# Function to find partial matches
-find_partial_matches <- function(x, choices) {
-  
-   sapply(x, function(i) {
-  # Check for NA or empty values first
-  if (is.na(i) || i == "") {
-    return(NA_character_)
-  }
-  
- 
-    matches <- stringr::str_detect(choices, regex(i, ignore_case = TRUE)) |
-      stringr::str_detect(i, regex(choices, ignore_case = TRUE))
-    
-    if (any(matches, na.rm = TRUE)) {
-      return(choices[matches][1])
-    } else {
-      return(NA_character_)
-    }
-    
-  })
-}
-
-#  Function to remove all-NA columns and report dropped variables
-remove_all_na_columns <- function(df) {
-  # Store the original column names
-  original_cols <- names(df)
-  
-  # Remove the all-NA columns
-  df_cleaned <- df %>% dplyr::select(where(~ !all(is.na(.))))
-  
-  # Identify dropped columns
-  dropped_vars <- setdiff(original_cols, names(df_cleaned))
-  
-  message("Dropped variables: ", paste(dropped_vars, collapse = ", "))
-  
-  # Return both the cleaned dataframe and info about dropped variables
-  return(list(
-    cleaned_data = df_cleaned,
-    dropped_variables = dropped_vars
-  ))
-}
+Source("Utils.R")
 
 # data %>% filter(Country=="Sri Lanka") %>% View(.)
 # 
@@ -388,6 +336,7 @@ ghsl_data <- read_csv(here("Data", "GHSL23", "GHS_STAT_UCDB2015MT_GLOBE_R2019A_V
                       , na = c("", "NA", "-999") 
                       )
 
+
 fix_spanish_chars <- function(text) {
   text <- iconv(text, from = "Latin1", to = "UTF-8")
   replacements <- c(
@@ -447,6 +396,11 @@ ghsl_data_mena <- remove_all_na_columns(ghsl_data_mena)
 # Dropped variables: E_EC2O_E75, E_EC2O_E90, E_EC2O_T75, E_EC2O_T90, E_EC2O_T00
 
 
-# Statistics -----
-# labels_vector <- setNames(labels$Label, labels$Variable)
-# data_merged <- setNames(data_merged, labels_vector[names(data_merged)])
+# UCBC -----
+layers <- st_layers(here("Data", "GHS24", "GHS_UCDB_GLOBE_R2024A.gpkg"))
+
+
+UCDB_all <- read_gpkg_layers(here("Data", "GHS24", "GHS_UCDB_GLOBE_R2024A.gpkg")
+                               , selected_layers = NULL
+                               , quiet = FALSE)}
+
