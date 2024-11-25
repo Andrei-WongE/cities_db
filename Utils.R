@@ -97,3 +97,50 @@ moving_average_change <- function(data, variable, years, calculate_pct_change = 
   
   return(result)
 }
+
+# Analyse missing values-----
+analyze_missing_values <- function(data, years = NULL, multi_year = FALSE) {
+  require(naniar)
+  require(dplyr)
+  require(ggplot2)
+  
+  # Validate input
+  if (!is.null(years) && !all(years %in% unique(data$Year))) {
+    stop("Specified year(s) not found in the dataset")
+  }
+  
+  # Filter years if specified
+  if (!is.null(years)) {
+    data <- data %>% filter(Year %in% years)
+  }
+  
+  # Create missing patterns summary
+  missing_patterns <- data %>%
+    group_by(Year, Location) %>%
+    miss_var_summary() %>%
+    arrange(desc(n_miss))
+  
+  # Create visualization
+  if (multi_year) {
+    # Multiple years plot
+    plot <- gg_miss_var(data, facet = Year) +
+      theme_minimal() +
+      labs(title = "Missing Values by Variable and Year") +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  } else {
+    # Single year plot
+    plot <- gg_miss_var(data) +
+      theme_minimal() +
+      labs(title = paste("Missing Values by Variable", 
+                         ifelse(!is.null(years), paste("in", years), ""))) +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  }
+  
+  # Return both the summary and plot
+  return(list(
+    missing_summary = missing_patterns,
+    plot = plot
+  ))
+}
+
+

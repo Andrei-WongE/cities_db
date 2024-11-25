@@ -410,7 +410,6 @@ generate_bar_plot <- function(data,
 
 #' Add group categories to data frame
 #' @param data Dataframe containing the variable to be categorized
-#' @param categories List of category definitions
 #' @param var_col Name of the variable column to categorize
 #' @param new_col Name for the new category column
 #' @param warn_unmapped Logical, whether to warn about unmapped values (default: TRUE)

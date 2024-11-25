@@ -67,7 +67,7 @@ oe_mena <- data %>% dplyr::filter(Country %in% mena_countries)
 
 oe_mena %>% filter(Country!=Location) %>%
   distinct(.$Location) %>% 
-  View() %>% #51 (not considering national level)
+  View()  #51 (not considering national level)
 
 # mismatches <- oe_mena %>%
 #   filter(Country != matched_country) %>%
@@ -77,6 +77,8 @@ oe_mena %>% filter(Country!=Location) %>%
 
 oe_mena %>% filter(Country != Location) %>% pull(Location) %>% 
   unique()
+
+View(labels_vector)
 
 oe_mena %>%
   filter(Country == Location) %>%
@@ -1224,6 +1226,7 @@ create_gva_visualizations(oe_mena
                           , year_range = c(2001, 2019)
                           , output_dir = here::here("Output", "MENA")
                          )
+
 
 
 

@@ -38,7 +38,7 @@ pkgs = c("dplyr", "tidyverse", "janitor", "sf"
          , "jtools", "tidyr", "ggspatial", "raster"
          , "prettymapr", "viridis", "labelled"
          , "writexl", "WDI", "wesanderson", "ggrepel",
-         "ggbreak"
+         "ggbreak", "naniar"
 )
 
 groundhog.library(pkgs, groundhog.day

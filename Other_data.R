@@ -19,10 +19,23 @@ show_in_excel <- function(.data){
 
 # Function to find partial matches
 find_partial_matches <- function(x, choices) {
-  sapply(x, function(i) {
+  
+   sapply(x, function(i) {
+  # Check for NA or empty values first
+  if (is.na(i) || i == "") {
+    return(NA_character_)
+  }
+  
+ 
     matches <- stringr::str_detect(choices, regex(i, ignore_case = TRUE)) |
       stringr::str_detect(i, regex(choices, ignore_case = TRUE))
-    if (any(matches)) choices[matches] else NA_character_
+    
+    if (any(matches, na.rm = TRUE)) {
+      return(choices[matches][1])
+    } else {
+      return(NA_character_)
+    }
+    
   })
 }
 
@@ -36,6 +49,8 @@ remove_all_na_columns <- function(df) {
   
   # Identify dropped columns
   dropped_vars <- setdiff(original_cols, names(df_cleaned))
+  
+  message("Dropped variables: ", paste(dropped_vars, collapse = ", "))
   
   # Return both the cleaned dataframe and info about dropped variables
   return(list(
@@ -362,17 +377,74 @@ ucdb_mena_cities <- as_tibble(ucdb_mena$cleaned_data) %>%
 ucdb_mena_cities %>% distinct(.$city) %>% View()
 
 # ### GHS-FUA----
-# Search file in Data folder
-path <- find_data_file(folder = "Data"
-              , filename = "GHS_FUA_UCDB2015_GLOBE_R2019A_54009_1K_V1_0.gpkg")
 
 ghs_fua <- st_read(
   here("Data", "GHSL23", "GHS_FUA_UCDB2015_GLOBE_R2019A_54009_1K_V1_0.gpkg")
 )
 
+ghsl_data <- read_csv(here("Data", "GHSL23", "GHS_STAT_UCDB2015MT_GLOBE_R2019A_V1_2.csv")
+                      , locale = locale(encoding = "UTF-8")
+                      , show_col_types = FALSE  
+                      , na = c("", "NA", "-999") 
+                      )
 
+fix_spanish_chars <- function(text) {
+  text <- iconv(text, from = "Latin1", to = "UTF-8")
+  replacements <- c(
+    "<a0>" = "á",
+    "<a1>" = "í",
+    "<a2>" = "ó",
+    "<a3>" = "ú",
+    "<a4>" = "ñ",
+    "<82>" = "é",
+    "¡" = "í",
+    "¢" = "ó",
+    "£" = "ú",
+    "¤" = "ñ",
+    "‚" = "é",
+    # Exact matches for the specific characters found
+    "í" = "i",
+    "ñ" = "n",
+    "ó" = "o",
+    "ú" = "u",
+    "ý" = "y",
+    "á" = "a",
+    # Common variations
+    "i\u0301" = "í",
+    "n\u0303" = "ñ",
+    "o\u0301" = "ó",
+    "u\u0301" = "ú",
+    "a\u0301" = "á"
+  )
+  
+  for(old in names(replacements)) {
+    text <- gsub(old, replacements[old], text, fixed = TRUE)
+  }
+  return(text)
+}
 
+ghsl_data$UC_NM_MN <- fix_spanish_chars(ghsl_data$UC_NM_MN)
 
+ghsl_data_mena <- ghsl_data %>% 
+  rename(city = UC_NM_MN) %>% 
+  rename(location = CTR_MN_NM) %>%
+  mutate(matched_country = find_partial_matches(location, mena_countries)) %>%
+  filter(!is.na(matched_country))
+
+mismatches <- ghsl_data_mena %>%
+  filter(location != matched_country) %>%
+  dplyr::select(location, matched_country) %>%
+  distinct() %>% 
+  print()
+
+ghsl_data_mena <- ghsl_data_mena %>% 
+  filter(location != "Romania")
+
+ghsl_data_mena %>% distinct(.$location) %>% View() # 18 Countries
+ghsl_data_mena %>% distinct(.$city) %>% View() # 872 Cities
+
+ghsl_data_mena <- remove_all_na_columns(ghsl_data_mena) 
+# Dropped variables: E_EC2O_E75, E_EC2O_E90, E_EC2O_T75, E_EC2O_T90, E_EC2O_T00
 
 
 # Statistics -----
