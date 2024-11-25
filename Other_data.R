@@ -5,7 +5,7 @@ require(dplyr)
 require(tidyr)
 require(stringr)
 
-Source("Utils.R")
+source("Utils.R")
 
 # data %>% filter(Country=="Sri Lanka") %>% View(.)
 # 
@@ -402,5 +402,5 @@ layers <- st_layers(here("Data", "GHS24", "GHS_UCDB_GLOBE_R2024A.gpkg"))
 
 UCDB_all <- read_gpkg_layers(here("Data", "GHS24", "GHS_UCDB_GLOBE_R2024A.gpkg")
                                , selected_layers = NULL
-                               , quiet = FALSE)}
+                               , quiet = FALSE)
 

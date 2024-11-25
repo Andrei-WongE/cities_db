@@ -36,57 +36,70 @@ result <- analyze_missing_values(oe_mena_cong, years = c(2001, 2019), multi_year
 
 # UCDB indicators----
 
+mena_countries <- c(
+  "Algeria",
+  "Bahrain",
+  "Egypt",
+  "Iran",
+  "Iraq",
+  "Israel",
+  "Jordan",
+  "Kuwait",
+  "Lebanon",
+  "Libya",
+  "Mauritania",
+  "Morocco",
+  "Oman",
+  "Qatar",
+  "Saudi Arabia",
+  "Syria",
+  "Tunisia",
+  "UAE",
+  "Yemen",
+  "Palestine"
+)
+
 subset_layers_by_year_location <- function(layers_data, years, countries, cores = parallel::detectCores() - 1) {
   require(parallel)
-  require(doParallel)
+  require(doParallel) 
   require(foreach)
   require(dplyr)
   require(sf)
   
-  # Ensure years is numeric
-  years <- as.numeric(years)
-  
-  # Setup parallel backend
   cl <- makeCluster(cores)
   registerDoParallel(cl)
   
-  # Process layers in parallel
-  layers_subset <- foreach(x = layers_data, 
+  layers_subset <- foreach(i = seq_along(layers_data), 
                            .packages = c("dplyr", "sf"),
-                           .export = c("years", "countries")) %dopar% {
-                             
-                             # Create dynamic renaming pairs for each year
-                             rename_pairs <- lapply(years, function(year) {
-                               c(
-                                 setNames(paste0("GC_CNT_GAD_", year), paste0("location_", year)),
-                                 setNames(paste0("GC_UCN_MAI_", year), paste0("city_", year))
-                               )
-                             })
-                             
-                             # Combine all rename pairs into one list
-                             rename_list <- do.call(c, rename_pairs)
-                             
-                             # Rename the columns
-                             x <- x %>%
-                               rename(!!!rename_list)
-                             
-                             # Get columns for specified years
-                             year_cols <- grep(paste0("_(", paste(years, collapse = "|"), ")$"), 
-                                               names(x), value = TRUE, perl = TRUE)
-                             
-                             # Filter and select
-                             if (length(year_cols) > 0) {
-                               x <- x %>%
-                                 filter(if_any(starts_with("location_"), ~ . %in% countries)) %>%
-                                 select(starts_with("location_"), starts_with("city_"), all_of(year_cols), geometry)
-                             }
-                             
+                           .final = function(x) {
+                             names(x) <- names(layers_data)
                              return(x)
+                           }) %dopar% {
+                             df <- layers_data[[i]]
+                             layer_name <- names(layers_data)[i]
+                             
+                             gc_gad <- names(df)[grep("^GC_CNT_GAD_", names(df))]
+                             gc_mai <- names(df)[grep("^GC_UCN_MAI_", names(df))]
+                             
+                             year_pattern <- paste0("_", years, "$", collapse = "|")
+                             year_cols <- names(df)[grep(year_pattern, names(df))]
+                             
+                             if(length(gc_gad) == 1 && length(gc_mai) == 1) {
+                               df <- df %>%
+                                 rename(
+                                   location = all_of(gc_gad),
+                                   city = all_of(gc_mai)
+                                 ) %>%
+                                 mutate(layer = layer_name) %>%
+                                 select(layer, location, city, all_of(year_cols), geom) %>%
+                                 filter(location %in% countries)
+                             }
+                             return(df)
                            }
   
-  # Stop cluster
   stopCluster(cl)
   return(layers_subset)
+  #Little effing function 
 }
 
 UCDB_all_mena <- subset_layers_by_year_location(UCDB_all,
@@ -122,5 +135,3 @@ search_term <- c("Location"
                 ,"IN_CIS_TRA_XXXX"   # Critical Infrastructures Spatial Index for the transportation sector
                 ,"IN_TRA_TOT_XXXX"   # Total infrastructure in the transportation sector
 )        
-search_variable(ucdb_mena_cities, search_term = "EM_", partial_match = TRUE, case_sensitive = FALSE)
-                                       

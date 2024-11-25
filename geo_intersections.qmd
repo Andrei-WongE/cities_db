@@ -1,0 +1,265 @@
+---
+title: "Geographic Intersections"
+author: "Carlos Calvo-Hernandez"
+format: html
+editor: source
+---
+
+```{r, include = FALSE}
+library(tidyverse)
+library(sf)
+library(here)
+sf_use_s2(TRUE)
+```
+
+
+## Data Sets Intersections
+
+```{r}
+# POlygon vector layer delineating the boundaries of functional urban areas
+fua_db <- st_read(here("data/GHSL23/GHS_FUA_UCDB2015_GLOBE_R2019A_54009_1K_V1_0.gpkg"))
+fua_db <- st_make_valid(fua_db)
+as_tibble(fua_db)
+```
+
+```{r}
+#Point vector layer identifying the urban centre centroids
+ucdb_short_db <- st_read(here("data/GHSL23/GHS_STAT_UCDB2015MT_GLOBE_R2019A_V1_2_short_pnt.gpkg"))
+
+as_tibble(ucdb_short_db)
+```
+
+```{r}
+#Polygon vector layer delineating the boundaries of urban centre
+ucdb_db <- st_read(here("data/GHSL23/GHS_STAT_UCDB2015MT_GLOBE_R2019A_V1_2.gpkg"))
+
+ucdb_db <- st_make_valid(ucdb_db)
+as_tibble(ucdb_db)
+```
+
+
+```{r}
+#Oxford Economics Cities Db
+oe_shp <- st_read(here("data/OE_FUA_SHAPEFILE/OE_FUA_SHAPEFILE.shp"))
+
+oe_shp <- st_make_valid(oe_shp)
+as_tibble(oe_shp)
+```
+
+```{r}
+#Classification of administrative units
+duc_shp <- st_read(here("data/GHSL23/GHS_SMOD_E2015_GLOBE/GHS_SMOD_E2020_GLOBE_R2023A_54009_1000_DUC_V1_0.shp"))
+
+duc_shp <- st_make_valid(duc_shp)
+
+as_tibble(duc_shp)
+```
+
+```{r}
+#
+  duc_shp <- raster::raster(here("data//GHSL23/GHS_SMOD_E2015_GLOBE/GHS_SMOD_E2020_GLOBE_R2023A_54009_1000_V2_0.tif"))
+
+#duc_shp <- st_make_valid(duc_shp)
+
+duc_shp
+```
+
+Project data to the same coordinate reference system Mollweide (ETRS89) from FUA data.
+
+```{r}
+oe_shp_proj <- st_make_valid(st_transform(oe_shp, st_crs(fua_db)))
+ucdb_db_proj <- st_make_valid(st_transform(ucdb_db, st_crs(fua_db)))
+ucdb_short_proj <- st_make_valid(st_transform(ucdb_short_db, st_crs(fua_db)))
+```
+
+
+### Intersections
+
+```{r}
+# Tests whether two geometries intersect.
+oe_fua_int <- st_intersects(oe_shp_proj, fua_db)
+oe_ucdb_int <- st_intersects(oe_shp_proj, ucdb_db_proj)
+oe_duc_int <- st_intersects(oe_shp_proj, duc_shp)
+oe_ucdb_short_int <- st_intersects(oe_shp_proj, ucdb_short_proj)
+```
+
+#### Reviewing intersections for UCDB
+
+```{r}
+compare_intersections <- function(proj_id, list1, list2) {
+  intersecting_indices1 <- list1[[proj_id]]
+  intersecting_indices2 <- list2[[proj_id]]
+
+  common1 <- intersecting_indices1 %in% intersecting_indices2
+  common2 <- intersecting_indices2 %in% intersecting_indices1
+
+  list(
+    Intersection1 = intersecting_indices1,
+    Intersection2 = intersecting_indices2,
+    CommonTo1 = common1,
+    CommonTo2 = common2,
+    Consistent = all(common1) && all(common2) && length(common1) == length(common2)
+  )
+}
+
+# Example usage for a specific index of oe_shp_proj
+comparison_result <- compare_intersections(1, oe_ucdb_int, oe_ucdb_short_int)
+str(comparison_result)
+```
+
+#### Save Matching Projection Shapefiles
+
+```{r}
+# List of datasets with corresponding folder names
+datasets <- list(
+  FUA_UCDB2015 = fua_db,
+  OE_2022 = oe_shp_proj,
+  UCDB_2015 = ucdb_db_proj,
+  UCDB_2015_short = ucdb_short_proj,
+  # DUC_2023 = duc_shp
+)
+
+# Create directories and save shapefiles
+lapply(names(datasets), function(source) {
+  # Define the directory path
+  dir_path <- here("data/processed/shapefiles", source)
+
+  # Create directory if it doesn't exist
+  if (!dir.exists(dir_path)) {
+    tryCatch({
+      dir.create(dir_path, recursive = TRUE)
+    }, error = function(e) {
+      cat("An error occurred while creating the directory:", e$message, "\n")
+    })
+  }
+
+  # Define the full file path for the shapefile
+  #file_path_shp <- file.path(dir_path, paste0(source, ".shp"))
+  file_path_geojson <- file.path(dir_path, paste0(source, ".geojson"))
+  file_path_gpkg <- file.path(dir_path, paste0(source, ".gpkg"))
+  
+  # Error handling while writing the shapefile
+  tryCatch({
+    #st_write(datasets[[source]], file_path_shp, delete_layer = TRUE)
+    st_write(datasets[[source]], file_path_geojson, driver = "GeoJSON", append=FALSE)
+    st_write(datasets[[source]], file_path_gpkg, delete_layer = TRUE, layer = source, driver = "GPKG")
+  }, error = function(e) {
+    cat("An error occurred while writing the shapefile:", e$message, "\n")
+  })
+})
+
+```
+
+
+### Match GHS Data back to OE 2022 Dataset
+
+#### Without Geometric References
+
+```{r}
+# Assuming oe_shp_proj$ID, fua_db$eFUA_ID, ucdb_db_proj$ID_HDC_G0, and duc_shp$ID_DUC_G0 are your IDs
+get_intersection_data_with_ids <- function(intersection_list, id_vector, other_df, other_id_name, dataset_name) {
+  # If using sf objects, drop the geometry column for the creation of data frames
+  # We assume the geometry column is named 'geometry'. Adjust if it has a different name.
+  other_df_nogeom <- st_drop_geometry(other_df)
+
+  do.call(rbind, lapply(seq_along(intersection_list), function(i) {
+    if (length(intersection_list[[i]]) > 0) {
+      data.frame(
+        OE_FUAID = id_vector[i],
+        Intersecting_ID = other_df_nogeom[intersection_list[[i]], other_id_name, drop = FALSE][[1]],
+        Dataset = dataset_name,
+        stringsAsFactors = FALSE
+      )
+    }
+  }))
+}
+
+# Update data frame creation for each dataset
+df_fua_int <- get_intersection_data_with_ids(oe_fua_int, oe_shp_proj$OE_FUAID, fua_db, "eFUA_ID", "FUA_UCDB2015")
+df_ucdb_int <- get_intersection_data_with_ids(oe_ucdb_int, oe_shp_proj$OE_FUAID, ucdb_db_proj, "ID_HDC_G0", "UCDB_2015")
+# df_duc_int <- get_intersection_data_with_ids(oe_duc_int, oe_shp_proj$OE_FUAID, duc_shp, "ID_DUC_G0", "DUC_2023")
+
+# Combine the data frames
+(all_intersections <- rbind(df_fua_int
+                            , df_ucdb_int
+                            # , df_duc_int
+                            )
+  )
+
+```
+
+```{r}
+intersections_wide_db <- all_intersections %>%
+  mutate(Intersecting_ID = as.character(Intersecting_ID)) %>% 
+  pivot_wider(
+    names_from = Dataset,               # Use Dataset to create new columns
+    values_from = Intersecting_ID,      # The values to fill in the new columns
+    values_fn = list(Intersecting_ID = list),  # Keep all IDs as a list
+    id_cols = OE_FUAID                        # ID is the unique identifier for each row
+  )
+
+intersections_wide_db
+```
+
+```{r}
+# Generate UUID for each row
+
+oe_df <- oe_shp_proj %>% 
+  st_drop_geometry()
+
+master_file_df <- intersections_wide_db %>%
+  mutate(ccksb_uid = sapply(seq_len(nrow(intersections_wide_db)), function(x) uuid::UUIDgenerate())) %>%
+  left_join(oe_df) %>% 
+  select(ccksb_uid, OE_FUAID, OE_COUNTRY, OE_FUANAME, everything())
+
+master_file_df
+```
+
+
+
+```{r}
+# Save the results to file. This is the master reference DB
+write_csv(master_file_df, here("data/processed/CCKSB_masterlist.csv"))
+```
+
+
+
+#### With Geometric References
+
+```{r}
+
+# Updated function assuming you want to keep geometries
+get_intersection_data_with_ids <- function(intersection_list, id_vector, other_df, other_id_name, dataset_name) {
+  do.call(rbind, lapply(seq_along(intersection_list), function(i) {
+    if (length(intersection_list[[i]]) > 0) {
+      # Ensure we return an sf object by subsetting the sf dataframe directly
+      subset_sf <- other_df[intersection_list[[i]], , drop = FALSE]
+      subset_sf$ID <- id_vector[i]
+      subset_sf$Dataset <- dataset_name
+      subset_sf
+    }
+  }))
+}
+
+# Remember to use rbind.sf to combine sf data frames
+all_intersections_sf <- do.call(rbind, list(df_fua_int
+                                                , df_ucdb_int
+                                                # , df_duc_int
+                                                )
+                                )
+
+```
+
+
+```{r}
+all_intersections_sf %>%
+  pivot_wider(
+    names_from = Dataset,               # Use Dataset to create new columns
+    values_from = Intersecting_Index,   # The values to fill in the new columns
+    values_fn = list(Intersecting_Index = list),  # Keep all indices as a list
+    id_cols = ID                        # ID is the unique identifier for each row
+  )
+```
+
+
+
