@@ -59,7 +59,7 @@ mena_countries <- c(
   "Palestine"
 )
 
-subset_layers_by_year_location <- function(layers_data, years, countries, cores = parallel::detectCores() - 1) {
+subset_layers_by_year_location <- function(layers_data, years, countries, cores = parallel::detectCores() - 3) {
   require(parallel)
   require(doParallel) 
   require(foreach)
@@ -67,39 +67,35 @@ subset_layers_by_year_location <- function(layers_data, years, countries, cores 
   require(sf)
   
   cl <- makeCluster(cores)
+  on.exit(stopCluster(cl))
   registerDoParallel(cl)
   
-  layers_subset <- foreach(i = seq_along(layers_data), 
-                           .packages = c("dplyr", "sf"),
-                           .final = function(x) {
-                             names(x) <- names(layers_data)
-                             return(x)
-                           }) %dopar% {
-                             df <- layers_data[[i]]
-                             layer_name <- names(layers_data)[i]
-                             
-                             gc_gad <- names(df)[grep("^GC_CNT_GAD_", names(df))]
-                             gc_mai <- names(df)[grep("^GC_UCN_MAI_", names(df))]
-                             
-                             year_pattern <- paste0("_", years, "$", collapse = "|")
-                             year_cols <- names(df)[grep(year_pattern, names(df))]
-                             
-                             if(length(gc_gad) == 1 && length(gc_mai) == 1) {
-                               df <- df %>%
-                                 rename(
-                                   location = all_of(gc_gad),
-                                   city = all_of(gc_mai)
-                                 ) %>%
-                                 mutate(layer = layer_name) %>%
-                                 select(layer, location, city, all_of(year_cols), geom) %>%
-                                 filter(location %in% countries)
-                             }
-                             return(df)
-                           }
-  
-  stopCluster(cl)
-  return(layers_subset)
-  #Little effing function 
+  foreach(i = seq_along(layers_data), 
+          .packages = c("dplyr", "sf"),
+          .final = function(x) {
+            setNames(x, names(layers_data))
+          }) %dopar% {
+            df <- layers_data[[i]]
+            layer_name <- names(layers_data)[i]
+            
+            gc_gad <- names(df)[grep("^GC_CNT_GAD_", names(df))]
+            gc_mai <- names(df)[grep("^GC_UCN_MAI_", names(df))]
+            
+            year_pattern <- paste0("_", years, "$", collapse = "|")
+            year_cols <- names(df)[grep(year_pattern, names(df))]
+            
+            if(length(gc_gad) == 1 && length(gc_mai) == 1) {
+              df %>%
+                rename(
+                  location = all_of(gc_gad),
+                  city = all_of(gc_mai)
+                ) %>%
+                mutate(layer = layer_name) %>%
+                select(layer, location, city, all_of(year_cols), geom) %>%
+                filter(location %in% countries)
+            }
+          }
+  #Little effing function
 }
 
 UCDB_all_mena <- subset_layers_by_year_location(UCDB_all,
