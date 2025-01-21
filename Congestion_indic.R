@@ -36,6 +36,11 @@ result <- analyze_missing_values(oe_mena_cong, years = c(2001, 2019), multi_year
 
 
 # UCDB indicators----
+source("Master_variables.R")
+source("Utils.R")
+UCDB_all <- read_gpkg_layers(here("Data", "GHS24", "GHS_UCDB_GLOBE_R2024A.gpkg")
+                             , selected_layers = NULL
+                             , quiet = FALSE)
 
 mena_countries <- c(
   "Algeria",
@@ -60,51 +65,168 @@ mena_countries <- c(
   "Palestine"
 )
 
-subset_layers_by_year_location <- function(layers_data, years, countries, cores = parallel::detectCores() - 3) {
-  require(parallel)
-  require(doParallel) 
-  require(foreach)
-  require(dplyr)
-  require(sf)
+# 
+# subset_layers_by_year_location <- function(layers_data, years, countries, cores = parallel::detectCores() - 3) {
+#   require(parallel)
+#   require(doParallel) 
+#   require(foreach)
+#   require(dplyr)
+#   require(sf)
+#   
+#   cl <- makeCluster(cores)
+#   on.exit(stopCluster(cl))
+#   registerDoParallel(cl)
+#   
+#   foreach(i = seq_along(layers_data), 
+#           .packages = c("dplyr", "sf"),
+#           .final = function(x) {
+#             setNames(x, names(layers_data))
+#           }) %dopar% {
+#             df <- layers_data[[i]]
+#             layer_name <- names(layers_data)[i]
+#             
+#             gc_gad <- names(df)[grep("^GC_CNT_GAD_", names(df))]
+#             gc_mai <- names(df)[grep("^GC_UCN_MAI_", names(df))]
+#             
+#             year_pattern <- paste0("_", years, "$", collapse = "|")
+#             year_cols <- names(df)[grep(year_pattern, names(df))]
+#             
+#             if(length(gc_gad) == 1 && length(gc_mai) == 1) {
+#               df %>%
+#                 rename(
+#                   location = all_of(gc_gad),
+#                   city = all_of(gc_mai)
+#                 ) %>%
+#                 mutate(layer = layer_name) %>%
+#                 select(layer, location, city, all_of(year_cols), geom)
+#               # %>%
+#               #   filter(location %in% countries)
+#             }
+#           }
+#   #Little effing function
+# }
+# 
+# UCDB_all <- subset_layers_by_year_location(UCDB_all,
+#                                        years = c(2000, 2005, 2010, 2015, 2020),
+#                                        # countries = mena_countries
+#                                       )
+# # UCDB_all <- UCDB_all %>% 
+#             mutate(Region = case_when(
+#               Country %in% mena_countries ~ "MENA",
+#               TRUE ~ "Not_MENA"
+#             ))
+
+id <- UCDB_all$GHS_UCDB_THEME_GHSL_GLOBE_R2024A$ID_UC_G0
+density <- UCDB_all$GHS_UCDB_THEME_GHSL_GLOBE_R2024A$GH_XST_D30_2020
+geom <- UCDB_all$GHS_UCDB_THEME_GHSL_GLOBE_R2024A$geom
+density_ucdb <- data.frame(id = as.numeric(id), Density = as.numeric(density), geom = geom)
+
+id <- UCDB_all$GHS_UCDB_THEME_EMISSIONS_GLOBE_R2024A$ID_UC_G0
+pm25 <- UCDB_all$GHS_UCDB_THEME_EMISSIONS_GLOBE_R2024A$EM_PM2_TOT_2020
+pm25_con <- UCDB_all$GHS_UCDB_THEME_EMISSIONS_GLOBE_R2024A$EM_PM2_CON_2020
+geom <- UCDB_all$GHS_UCDB_THEME_EMISSIONS_GLOBE_R2024A$geom
+pm25_ucdb <- data.frame(id = as.numeric(id), PM2.5 = as.numeric(pm25), PM2.5_concentration = pm25_con, geom = geom)
+
+geo_ucdb <- UCDB_all$GHS_UCDB_THEME_GENERAL_CHARACTERISTICS_GLOBE_R2024A %>% 
+            rename(
+              id = ID_UC_G0,
+              Location = GC_UCN_MAI_2025,
+              Country = GC_CNT_GAD_2025,
+              Regions = GC_DEV_USR_2025
+            ) 
+
+pollution_ucdb <- density_ucdb %>%
+                  full_join(pm25_ucdb, by = c("id")) %>%
+                  full_join(geo_ucdb, by = c("id")) %>% 
+                  mutate(log_density = log(Density)) %>% 
+                  mutate(log_concentration = log(PM2.5_concentration)) %>%
+                  mutate(Region = case_when(
+                    Country %in% mena_countries ~ "MENA",
+                    TRUE ~ "Not_MENA"
+                  ))
+
+summary(pollution_ucdb$Density)
+# Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+# 0    3633    5326    6040    7714   61003 
+
+summary_details <- function(data, variable_name, region_column, region_value) {
+  variable <- data[[variable_name]]
+  region_count <- sum(data[[region_column]] == region_value, na.rm = TRUE)
+  n <- length(variable)
+  missing <- sum(is.na(variable))
+  non_missing <- n - missing
+  basic_summary <- summary(variable)
   
-  cl <- makeCluster(cores)
-  on.exit(stopCluster(cl))
-  registerDoParallel(cl)
+  list(
+    N = n,
+    Missing = missing,
+    Non_Missing = non_missing,
+    Region_Count = region_count,
+    Summary = basic_summary
+  )
+}
+summary_details(pollution_ucdb, "log_density", "Region", "MENA")
+
+
+index <- c("PM2.5", "log_concentration")
+
+plot_index <- function(index) {
+  plot <- pollution_ucdb %>% 
+    filter(Country != Location) %>% 
+    filter(.data[[index]] > 0) %>%  
+    ggplot(aes(x = log_density, y = .data[[index]], color = Region)) +
+    geom_point() +
+    geom_smooth(method = "lm", se = FALSE) +  # Optional: Add a linear regression line
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+    labs(x = "Log Density", y = index
+         # , title = paste(index, "vs Log Density (2020)")
+    ) +
+    scale_color_manual(values = c("MENA" = "red", "Other" = "blue"))
   
-  foreach(i = seq_along(layers_data), 
-          .packages = c("dplyr", "sf"),
-          .final = function(x) {
-            setNames(x, names(layers_data))
-          }) %dopar% {
-            df <- layers_data[[i]]
-            layer_name <- names(layers_data)[i]
-            
-            gc_gad <- names(df)[grep("^GC_CNT_GAD_", names(df))]
-            gc_mai <- names(df)[grep("^GC_UCN_MAI_", names(df))]
-            
-            year_pattern <- paste0("_", years, "$", collapse = "|")
-            year_cols <- names(df)[grep(year_pattern, names(df))]
-            
-            if(length(gc_gad) == 1 && length(gc_mai) == 1) {
-              df %>%
-                rename(
-                  location = all_of(gc_gad),
-                  city = all_of(gc_mai)
-                ) %>%
-                mutate(layer = layer_name) %>%
-                select(layer, location, city, all_of(year_cols), geom) %>%
-                filter(location %in% countries)
-            }
-          }
-  #Little effing function
+  print(plot)
+  
+  ggsave(filename = here("Figures", paste0(index, "_vs_Log_Density_2020.png")), plot = plot)
 }
 
-UCDB_all_mena <- subset_layers_by_year_location(UCDB_all,
-                                       years = c(2000, 2005, 2010, 2015, 2020),
-                                       countries = mena_countries
-                                      ) 
+walk(index, plot_index)
 
-  
+# Boxplot by region
+
+plot2 <- ggplot(pollution_ucdb %>%
+                  group_by(Regions) %>%
+                  mutate(median_PM2.5_concentration = median(PM2.5_concentration)) %>%
+                  ungroup() %>%
+                  mutate(Regions2 = reorder(Regions, median_PM2.5_concentration)),
+                  aes(x = PM2.5_concentration, y = Regions2)) +
+  geom_boxplot(outlier.size = 2, outlier.alpha = 0.6) +
+  labs(
+    x = expression(PM[2.5]~concentration),
+    y = NULL,
+    title = expression(Concentration~of~PM[2.5]~by~region)
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 11),
+    axis.text = element_text(size = 9),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.y = element_blank()
+  ) +
+  scale_x_continuous(limits = c(0, 200))
+
+ggsave(filename = here("Figures", "PM2.5_concentration_vs_Log_Density_2020.png"), plot = plot2)
+plot2
+
+          dplyr::select(,"Country"
+                              ,"Year"
+                              ,"Location"
+                              ,"GC_CNT_GAD_XXXX"  # Country's main cities
+                              ,"GC_UCN_MAI_XXXX"   # Country's main cities
+                              ,"IN_ROA_LEN_XXXX"   # Total road length inside the urban center
+                              ,"IN_CIS_TRA_XXXX"   # Critical Infrastructures Spatial Index for the transportation sector
+                              ,"IN_TRA_TOT_XXXX"   # Total infrastructure in the transportation sector
+                              )
+
                         dplyr::select(,"Location"
                                       ,"Year"
                                       ,"EM_CO2_TRA_XXXX"  # Total CO2 emissions in transport sector
@@ -186,10 +308,10 @@ oe_data <- oe_data %>% group_by(Location, Year)
 #                 )
 
 (matching_cities <- stringdist_join(
-  data_rankings_traffic_past, oe_data,
-  by = c("city_name" = "Location"),
+  data_rankings_traffic_past, oe_data %>% filter(Country != Location),
+  by = c("country" = "Country", "city_name" = "Location"),
   mode = "full",
-  method = "lv" # Levenshtein, Measures the minimum number of single-character edits required.
+  method = "jw" # 
   #, distance_col = "distance"
 )
 )
@@ -213,19 +335,20 @@ summary(valid_geometries)
 oe_geo <- st_make_valid(oe_geo)
 
 oe_geo <- oe_geo %>% 
-  mutate(area = st_area(.)/1e6) # Adjust to km2
+  mutate(area = st_area(.)) %>% 
+  mutate(area_km2 = as.numeric(st_area(.) / 1e6)) # Adjust to km²
 
 matching_cities <- matching_cities %>% 
   left_join(oe_geo, by = c("Location" = "OE_FUANAME")) %>% 
   dplyr::select(-geometry)
 
 matching_cities <- matching_cities %>%
-  rename(Area = area) 
+  rename(Area = area_km2) 
 # %>%
 #   dplyr::select(-area.y)
 
 matching_cities <- matching_cities %>% 
-  mutate(density = if_else(is.na(Area), NA_real_, as.numeric(POPTOTT) * 1e6/ as.numeric(Area)))
+  mutate(density = if_else(is.na(Area), NA_real_, as.numeric(POPTOTT) * 1e3/ as.numeric(Area)))
 
 matching_cities <- matching_cities %>% 
 mutate(Region = case_when(
@@ -237,7 +360,26 @@ mutate(log_density = log(density))
 summary(matching_cities %>% filter(Country != Location) %>% pull(density))
 
 # Min. 1st Qu.  Median    Mean 3rd Qu.    Max.    NA's 
-#    0.06    0.20    0.36    0.93    1.94    4.54      82 
+#      57     546    1280    1722    2468    7465     220
+
+summary_details <- function(data, variable_name, region_column, region_value) {
+  variable <- data[[variable_name]]
+  region_count <- sum(data[[region_column]] == region_value, na.rm = TRUE)
+  n <- length(variable)
+  missing <- sum(is.na(variable))
+  non_missing <- n - missing
+  basic_summary <- summary(variable)
+  
+  list(
+    N = n,
+    Missing = missing,
+    Non_Missing = non_missing,
+    Region_Count = region_count,
+    Summary = basic_summary
+  )
+}
+summary_details(matching_cities %>% filter(Country != Location) %>% filter(Year == 2019) 
+                , "log_density", "Region", "MENA")
 
 index <- c("time_exp_index", "traffic_index", "time_index", "inefficiency_index", "co2_emission_index")
 
@@ -250,7 +392,9 @@ plot_index <- function(index) {
     geom_smooth(method = "lm", se = FALSE) +  # Optional: Add a linear regression line
     theme_minimal() +
     theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-    labs(x = "Log Density", y = index, title = paste(index, "vs Log Density (2019)")) +
+    labs(x = "Log Density", y = index
+         # , title = paste(index, "vs Log Density (2019)")
+         ) +
     scale_color_manual(values = c("MENA" = "red", "Other" = "blue"))
   
   print(plot)
@@ -275,15 +419,15 @@ data_rankings_pollution_past <- data_rankings_pollution_past %>%
   group_by(city_name, Year) 
 
 (matching_cities_pollution <- stringdist_join(
-  data_rankings_pollution_past, oe_data,
-  by = c("city_name" = "Location"),
+  data_rankings_pollution_past, oe_data %>% filter(Country != Location),
+  by = c("country" = "Country", "city_name" = "Location"),
   mode = "full",
-  method = "lv" # Levenshtein, Measures the minimum number of single-character edits required.
+  method = "jw" # 
   #, distance_col = "distance"
 )
 )
 matching_cities_pollution %>% filter(Country!=Location) %>% 
-  filter(Year.x == Year.y) %>% 
+  # filter(Year.x == Year.y) %>% 
   distinct(.$Location) %>% 
   View()
 
@@ -296,12 +440,12 @@ matching_cities_pollution <- matching_cities_pollution %>%
   dplyr::select(-geometry)
 
 matching_cities_pollution <- matching_cities_pollution %>%
-  rename(Area = area) 
+  rename(Area = area_km2) 
 # %>%
 #   dplyr::select(-area.y)
 
 matching_cities_pollution <- matching_cities_pollution %>% 
-  mutate(density = if_else(is.na(Area), NA_real_, as.numeric(POPTOTT) * 1e6/ as.numeric(Area)))
+  mutate(density = if_else(is.na(Area), NA_real_, as.numeric(POPTOTT) * 1e3/ as.numeric(Area)))
 
 matching_cities_pollution <- matching_cities_pollution %>% 
   mutate(Region = case_when(
@@ -313,8 +457,12 @@ matching_cities_pollution <- matching_cities_pollution %>%
 summary(matching_cities_pollution %>% filter(Country != Location) %>% pull(density))
 
 # Min. 1st Qu.  Median    Mean 3rd Qu.    Max.    NA's 
-#    0.06    0.20    0.36    0.93    1.94    4.54      82 
+#      17     744    1459    2845    2590  122506     363
 
+summary_details(matching_cities_pollution %>% filter(Country != Location) %>% filter(Year == 2019) 
+                , "log_density", "Region", "MENA")
+
+     
 index <- c("pollution_index", "exp_pollution_index")
 
 plot_index <- function(index) {
@@ -326,7 +474,9 @@ plot_index <- function(index) {
     geom_smooth(method = "lm", se = FALSE) +  # Optional: Add a linear regression line
     theme_minimal() +
     theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-    labs(x = "Log Density", y = index, title = paste(index, "vs Log Density (2019)")) +
+    labs(x = "Log Density", y = index
+         # , title = paste(index, "vs Log Density (2019)")
+         ) +
     scale_color_manual(values = c("MENA" = "red", "Other" = "blue"))
   
   print(plot)
