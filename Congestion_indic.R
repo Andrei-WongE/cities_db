@@ -139,7 +139,7 @@ pollution_ucdb <- density_ucdb %>%
                   full_join(pm25_ucdb, by = c("id")) %>%
                   full_join(geo_ucdb, by = c("id")) %>% 
                   mutate(log_density = log(Density)) %>% 
-                  mutate(log_concentration = log(PM2.5_concentration)) %>%
+                  mutate(log_concentration = log)
                   mutate(Region = case_when(
                     Country %in% mena_countries ~ "MENA",
                     TRUE ~ "Not_MENA"
@@ -168,7 +168,7 @@ summary_details <- function(data, variable_name, region_column, region_value) {
 summary_details(pollution_ucdb, "log_density", "Region", "MENA")
 
 
-index <- c("PM2.5", "log_concentration")
+index <- c("PM2.5", "PM2.5_concentration")
 
 plot_index <- function(index) {
   plot <- pollution_ucdb %>% 
