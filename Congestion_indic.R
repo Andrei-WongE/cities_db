@@ -125,7 +125,11 @@ id <- UCDB_all$GHS_UCDB_THEME_EMISSIONS_GLOBE_R2024A$ID_UC_G0
 pm25 <- UCDB_all$GHS_UCDB_THEME_EMISSIONS_GLOBE_R2024A$EM_PM2_TOT_2020
 pm25_con <- UCDB_all$GHS_UCDB_THEME_EMISSIONS_GLOBE_R2024A$EM_PM2_CON_2020
 geom <- UCDB_all$GHS_UCDB_THEME_EMISSIONS_GLOBE_R2024A$geom
-pm25_ucdb <- data.frame(id = as.numeric(id), PM2.5 = as.numeric(pm25), PM2.5_concentration = pm25_con, geom = geom)
+pm25_ucdb <- data.frame(id = as.numeric(id)
+                        , PM2.5 = as.numeric(pm25)
+                        , PM2.5_concentration = as.numeric(pm25_con)
+                        , geom = geom
+                        )
 
 geo_ucdb <- UCDB_all$GHS_UCDB_THEME_GENERAL_CHARACTERISTICS_GLOBE_R2024A %>% 
             rename(
@@ -135,11 +139,18 @@ geo_ucdb <- UCDB_all$GHS_UCDB_THEME_GENERAL_CHARACTERISTICS_GLOBE_R2024A %>%
               Regions = GC_DEV_USR_2025
             ) 
 
+id <- UCDB_all$GHS_UCDB_THEME_SOCIOECONOMIC_GLOBE_R2024A$ID_UC_G0
+gdp <- UCDB_all$GHS_UCDB_THEME_SOCIOECONOMIC_GLOBE_R2024A$SC_SEC_GDP_2020
+geom <- UCDB_all$GHS_UCDB_THEME_SOCIOECONOMIC_GLOBE_R2024A$geom
+econ_ucdb <- data.frame(id = as.numeric(id), GDP = as.numeric(gdp), geom = geom)
+
 pollution_ucdb <- density_ucdb %>%
                   full_join(pm25_ucdb, by = c("id")) %>%
                   full_join(geo_ucdb, by = c("id")) %>% 
+                  full_join(econ_ucdb, by = c("id")) %>%
                   mutate(log_density = log(Density)) %>% 
-                  mutate(log_concentration = log)
+                  mutate(log_concentration = log(PM2.5_concentration)) %>%
+                  mutate(log_gdp = log(GDP)) %>%
                   mutate(Region = case_when(
                     Country %in% mena_countries ~ "MENA",
                     TRUE ~ "Not_MENA"
@@ -165,7 +176,12 @@ summary_details <- function(data, variable_name, region_column, region_value) {
     Summary = basic_summary
   )
 }
-summary_details(pollution_ucdb, "log_density", "Region", "MENA")
+summary_details(pollution_ucdb
+                # , "log_density"
+                , "PM2.5_concentration"
+                , "Region"
+                , "MENA"
+                )
 
 
 index <- c("PM2.5", "PM2.5_concentration")
@@ -174,31 +190,57 @@ plot_index <- function(index) {
   plot <- pollution_ucdb %>% 
     filter(Country != Location) %>% 
     filter(.data[[index]] > 0) %>%  
-    ggplot(aes(x = log_density, y = .data[[index]], color = Region)) +
+    ggplot(aes(x = log_gdp, y = .data[[index]], color = Region)) +
     geom_point() +
     geom_smooth(method = "lm", se = FALSE) +  # Optional: Add a linear regression line
     theme_minimal() +
     theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-    labs(x = "Log Density", y = index
+    labs(x = "Log GDP", y = index
          # , title = paste(index, "vs Log Density (2020)")
     ) +
     scale_color_manual(values = c("MENA" = "red", "Other" = "blue"))
   
   print(plot)
   
-  ggsave(filename = here("Figures", paste0(index, "_vs_Log_Density_2020.png")), plot = plot)
+  ggsave(filename = here("Figures", paste0(index, "_vs_Log_GDP_2020.png")), plot = plot)
 }
 
 walk(index, plot_index)
 
 # Boxplot by region
 
-plot2 <- ggplot(pollution_ucdb %>%
-                  group_by(Regions) %>%
-                  mutate(median_PM2.5_concentration = median(PM2.5_concentration)) %>%
-                  ungroup() %>%
-                  mutate(Regions2 = reorder(Regions, median_PM2.5_concentration)),
-                  aes(x = PM2.5_concentration, y = Regions2)) +
+# Create a combined dataset with both Regions2 and MENA
+plot_data <- pollution_ucdb %>%
+  group_by(Regions) %>%
+  mutate(median_PM2.5_concentration = median(PM2.5_concentration)) %>%
+  ungroup() %>%
+  mutate(Regions2 = factor(Regions)) %>%
+  # mutate(Regions2 = reorder(Regions2, -median_PM2.5_concentration)) %>%
+  # group_by(Regions2) %>%
+  # mutate(n = n()) %>%
+  ungroup()
+
+# Add MENA as a separate category
+mena_data <- pollution_ucdb %>% 
+  filter(Region == "MENA") %>%
+  mutate(Regions2 = "MENA",
+         median_PM2.5_concentration = median(PM2.5_concentration)) %>% 
+  # mutate(Regions2 = reorder(Regions2, -median_PM2.5_concentration)) %>% 
+  group_by(Regions2) %>%
+  mutate(n = n()) %>%
+  ungroup()
+
+# Combine the datasets
+plot_data <- bind_rows(plot_data, mena_data) %>% 
+  mutate(Regions2 = reorder(Regions2, median_PM2.5_concentration)) %>% 
+  mutate(Regions2 = reorder(Regions2, -median_PM2.5_concentration)) %>% 
+  group_by(Regions2) %>%
+  mutate(n = n()) %>%
+  ungroup()
+
+  
+plot2 <- ggplot(plot_data,
+                aes(x = PM2.5_concentration, y = Regions2, fill = Regions2 == "MENA")) +
   geom_boxplot(outlier.size = 2, outlier.alpha = 0.6) +
   labs(
     x = expression(PM[2.5]~concentration),
@@ -210,11 +252,18 @@ plot2 <- ggplot(pollution_ucdb %>%
     plot.title = element_text(size = 11),
     axis.text = element_text(size = 9),
     panel.grid.minor = element_blank(),
-    panel.grid.major.y = element_blank()
+    panel.grid.major.y = element_blank(),
+    legend.position = "none"
   ) +
-  scale_x_continuous(limits = c(0, 200))
+  scale_x_continuous(limits = c(0, 200)) +
+  scale_fill_manual(values = c("TRUE" = "red"))  +
+  labs(y = NULL) +
+  annotate("text", x = Inf, y = plot_data$Regions2
+           , label = paste0(plot_data$Regions2, " (n=", plot_data$n, ")"), 
+           hjust = 1, vjust = 0.5, size = 3)
 
-ggsave(filename = here("Figures", "PM2.5_concentration_vs_Log_Density_2020.png"), plot = plot2)
+ggsave(filename = here("Figures", "PM2.5_concentration_vs_Log_Density_2020.png")
+, plot = plot2)
 plot2
 
           dplyr::select(,"Country"
