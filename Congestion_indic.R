@@ -259,7 +259,7 @@ plot2 <- ggplot(plot_data,
   scale_fill_manual(values = c("TRUE" = "red"))  +
   labs(y = NULL) +
   annotate("text", x = Inf, y = plot_data$Regions2
-           , label = paste0(plot_data$Regions2, " (n=", plot_data$n, ")"), 
+           , label = paste0(" (n=", plot_data$n, ")"), 
            hjust = 1, vjust = 0.5, size = 3)
 
 ggsave(filename = here("Figures", "PM2.5_concentration_vs_Log_Density_2020.png")
