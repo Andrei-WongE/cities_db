@@ -1,6 +1,7 @@
 
 source("Master_variables.R")
 source("Utils.R")
+require(scales)
 
 # USCDB-----
 UCDB_multi <- st_read(here("Data", "GHS24", "GHS_UCDB_MTUC_GLOBE_R2024A.gpkg")
@@ -138,6 +139,8 @@ oe_data_shi <- oe_data %>%
          , Industry_Emp_Pct, Public_Services_Emp_Pct)
 
 oe_data_shi %>% filter(is.na(WB_income_group)) %>% View() #Must be empty
+
+# oe_data_shi$GDP_per_capita_PPP <- comma(oe_data_shi$GDP_per_capita_PPP * 1000, accuracy = 0.1) creates problems when plotting in shiny
 
 # Export data to shiny project
 
