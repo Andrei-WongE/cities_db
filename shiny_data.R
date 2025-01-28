@@ -35,6 +35,40 @@ mena_countries <- c(
   "Palestine"
 )
 
+country_groups <- list(
+  GCC = c(
+    "Bahrain",
+    "Kuwait",
+    "Oman",
+    "Qatar",
+    "Saudi Arabia",
+    "UAE"
+  ),
+  
+  Maghreb = c(
+    "Algeria",
+    "Libya",
+    "Mauritania",
+    "Morocco",
+    "Tunisia"
+  ),
+  
+  Mashreq = c("Bahrain",
+              "Egypt",
+              "Iraq",
+              "Jordan",
+              "Kuwait",
+              # "Lebanon",
+              "Oman",
+              "Palestine",
+              "Qatar",
+              "Saudi Arabia",
+              "Sudan",
+              "Syria",
+              "UAE",
+              "Yemen")
+)
+
 id <- UCDB_all$GHS_UCDB_THEME_GHSL_GLOBE_R2024A$ID_UC_G0
 wb_income_group <- UCDB_all$GHS_UCDB_THEME_GHSL_GLOBE_R2024A$GC_DEV_WIG_2025
 geo_region <- UCDB_all$GHS_UCDB_THEME_GHSL_GLOBE_R2024A$GC_DEV_USR_2025
@@ -75,6 +109,13 @@ built_ucdb <- data.frame( id = as.numeric(id)
                         , Region = as.character(geo_region)
                         , Country = as.character(country)
                         )  %>% 
+              mutate(Comparators = case_when(
+                country %in% country_groups$GCC ~ "GCC",
+                country %in% country_groups$Maghreb ~ "Maghreb",
+                country %in% country_groups$Mashreq ~ "Mashreq",
+                country %in% mena_countries ~ "MENA",
+                TRUE ~ "Other"
+              )) %>%
       dplyr::select(-id) %>%
       filter(!is.na(Urban_centre)) %>% 
       distinct()
@@ -85,36 +126,20 @@ built_ucdb <- data.frame( id = as.numeric(id)
 oe_data <- data
 names(oe_data)
 
-mena_countries <- c(
-  "Algeria",
-  "Bahrain",
-  "Egypt",
-  "Iran",
-  "Iraq",
-  "Israel",
-  "Jordan",
-  "Kuwait",
-  "Lebanon",
-  "Libya",
-  "Mauritania",
-  "Morocco",
-  "Oman",
-  "Qatar",
-  "Saudi Arabia",
-  "Syria",
-  "Tunisia",
-  "UAE",
-  "Yemen",
-  "Palestine"
-)
-
 oe_data <- oe_data %>% filter(Country!=Location) 
 
 oe_data_shi <- oe_data %>%
   # Filter the data for the required years (2011-2019)
   filter(Year >= 2011 & Year <= 2019) %>%
-  # Create comparitor groups
+  # Create comparator groups
   mutate(Region2 = ifelse(Country %in% mena_countries, "MENA", "Other")) %>%
+  mutate(Comparators = case_when(
+    Country %in% country_groups$GCC ~ "GCC",
+    Country %in% country_groups$Maghreb ~ "Maghreb",
+    Country %in% country_groups$Mashreq ~ "Mashreq",
+    Country %in% mena_countries ~ "MENA",
+    TRUE ~ "Other"
+  )) %>%
   left_join(comparators_ucdb, by = c("Country")) %>%
     mutate(across(c("EMPO_Q"
                   , "EMPB_F"
@@ -133,7 +158,7 @@ oe_data_shi <- oe_data %>%
     Agriculture_Emp_Pct = EMPA / EMPTOTT,
     Transport_Information_Communic_Services_Emp_Pct = EMPHJ / EMPTOTT
   ) %>% 
-  dplyr::select(Location, Country, Year, GDP_per_capita_PPP, Region2, WB_income_group
+  dplyr::select(Location, Country, Year, GDP_per_capita_PPP, Region2,Comparators, WB_income_group
          , Region, Transport_Information_Communic_Services_Emp_Pct
          ,Agriculture_Emp_Pct, Consumer_Services_Emp_Pct, Financial_Busines_Services_Emp_Pct
          , Industry_Emp_Pct, Public_Services_Emp_Pct)
