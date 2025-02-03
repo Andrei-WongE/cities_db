@@ -118,6 +118,7 @@ built_ucdb <- data.frame( id = as.numeric(id)
               )) %>%
       dplyr::select(-id) %>%
       filter(!is.na(Urban_centre)) %>% 
+      filter(!is.na(Built_rel_change)) %>% 
       distinct()
 
 # built_ucdb %>% filter(is.na(Urban_centre)) %>% View() #NA UC!
@@ -161,7 +162,8 @@ oe_data_shi <- oe_data %>%
   dplyr::select(Location, Country, Year, GDP_per_capita_PPP, Region2,Comparators, WB_income_group
          , Region, Transport_Information_Communic_Services_Emp_Pct
          ,Agriculture_Emp_Pct, Consumer_Services_Emp_Pct, Financial_Busines_Services_Emp_Pct
-         , Industry_Emp_Pct, Public_Services_Emp_Pct)
+         , Industry_Emp_Pct, Public_Services_Emp_Pct) %>% 
+  dplyr::filter(!is.na(GDP_per_capita_PPP))
 
 oe_data_shi %>% filter(is.na(WB_income_group)) %>% View() #Must be empty
 
