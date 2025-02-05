@@ -62,7 +62,6 @@ mena_countries <- c(
   "Palestine"
 )
 
-
 oe_mena <- data %>% dplyr::filter(Country %in% mena_countries)
 
 oe_mena %>% filter(Country!=Location) %>%
@@ -870,10 +869,10 @@ oe_comparators2 <- oe_comparators2 %>%
          GVAHJPPPC = as.numeric(GVAHJPPPC),
   ) %>%
   mutate(Agriculture_GVA_Pct = GVAAPPPC / GVATOTPPPC
-         , Consumer_services_GVA_Pct = GVAGIR_UPPPC / GVATOTPPPC
-         , Financial_business_services_GVA_Pct = GVAK_NPPPC / GVATOTPPPC
+         , Consumer_Services_GVA_Pct = GVAGIR_UPPPC / GVATOTPPPC
+         , Financial_Business_Services_GVA_Pct = GVAK_NPPPC / GVATOTPPPC
          , Industry_GVA_Pct = GVAB_FPPPC / GVATOTPPPC          
-         , Public_services_GVA_Pct =  GVAO_QPPPC / GVATOTPPPC 
+         , Public_Services_GVA_Pct =  GVAO_QPPPC / GVATOTPPPC 
          , Transport_Information_Communic_Services_GVA_Pct =  GVAHJPPPC / GVATOTPPPC
   ) # Decimal format
 
@@ -891,9 +890,9 @@ oe_comparators2 <- oe_comparators2 %>%
 
 
 
-columns_to_pivot <- c("Agriculture_GVA_Pct", "Consumer_services_GVA_Pct",
-                      "Financial_business_services_GVA_Pct", "Industry_GVA_Pct",
-                      "Public_services_GVA_Pct", "Transport_Information_Communic_Services_GVA_Pct")
+columns_to_pivot <- c("Agriculture_GVA_Pct", "Consumer_Services_GVA_Pct",
+                      "Financial_Business_Services_GVA_Pct", "Industry_GVA_Pct",
+                      "Public_Services_GVA_Pct", "Transport_Information_Communic_Services_GVA_Pct")
 
 # Check that percentage columns sum to 100% for each location and year
 # pie_data_check  <- oe_comparators2 %>%
@@ -988,9 +987,6 @@ create_gva_visualizations <- function(data, year_range = c(2001, 2019),
       Year = as.numeric(Year)
     )
   
-  # Create directory if it doesn't exist
-  dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
-  
   # Function to create single location plot
   create_location_plot <- function(loc_data) {
     # Get location name
@@ -1013,54 +1009,90 @@ create_gva_visualizations <- function(data, year_range = c(2001, 2019),
       ) %>%
       ungroup()
     
-    # Create plot
-    p <- ggplot(loc_data, aes(x = Year, y = Percentage, fill = Sector)) +
-      geom_area(position = "fill", alpha = 0.8) +
-      scale_fill_manual(
-        values = c(
-          wes_palette("Zissou1", n = length(unique(loc_data$Sector)), 
-                      type = "continuous"), 
-          "#D3D3D3"
+    # Create plot based on the number of years
+    if (length(unique(loc_data$Year)) == 1) {
+      # Single year: create a stacked bar chart
+      p <- ggplot(loc_data, aes(x = factor(Year), y = Percentage, fill = Sector)) +
+        geom_bar(stat = "identity", alpha = 0.8) +
+        scale_fill_manual(
+          values = c(
+            wes_palette("Zissou1", n = length(unique(loc_data$Sector)), 
+                        type = "continuous"), 
+            "#D3D3D3"
+          )
+        ) +
+        labs(
+          title = paste("GVA Contribution by Sector in", location, 
+                        paste0("(", start_year, ")")),
+          x = NULL,
+          y = "Percentage",
+          fill = "Sector"
+        ) +
+        theme_minimal() +
+        theme(
+          plot.title = element_text(size = 14, face = "bold"),
+          axis.text.x = element_text(size = 8, face = "bold"),
+          legend.position = "bottom",
+          legend.title = element_blank()
+        ) +
+        scale_y_continuous(labels = scales::percent_format()) +
+        geom_text( data = label_data,
+          aes(x = factor(Year), y = pos, label = perc, group = Sector),
+          size = 3,
+          fontface = "bold"
+        ) 
+      
+    } else {
+      
+      # Multiple years: create an area chart
+      p <- ggplot(loc_data, aes(x = Year, y = Percentage, fill = Sector)) +
+        geom_area(position = "fill", alpha = 0.8) +
+        scale_fill_manual(
+          values = c(
+            wes_palette("Zissou1", n = length(unique(loc_data$Sector)), 
+                        type = "continuous"), 
+            "#D3D3D3"
+          )
+        ) +
+        labs(
+          title = paste("GVA Contribution by Sector in", location, 
+                        paste0("(", start_year, "-", end_year, ")")),
+          x = NULL,
+          y = "Percentage",
+          fill = "Sector"
+        ) +
+        theme_minimal() +
+        theme(
+          plot.title = element_text(size = 14, face = "bold"),
+          axis.text.x = element_text(angle = 45, hjust = 1, size = 8, 
+                                     face = "bold"),
+          legend.position = "bottom",
+          legend.title = element_blank()
+        ) +
+        scale_y_continuous(labels = scales::percent_format()) +
+        scale_x_continuous(breaks = unique(loc_data$Year)) +
+        # Add labels and connecting lines with corrected positioning
+        geom_text(
+          data = label_data %>% 
+            filter(Year == start_year | Year == end_year),
+          aes(x = Year, y = pos, label = perc, group = Sector,
+              hjust = ifelse(Year == start_year, 1.1, -0.1)),  # Adjusted hjust
+          size = 3,
+          fontface = "bold"
+        ) +
+        geom_line(
+          data = label_data %>% 
+            filter(Year == start_year | Year == end_year),
+          aes(x = Year, y = pos, group = Sector),
+          linetype = "dotted", 
+          color = "gray50"
         )
-      ) +
-      labs(
-        title = paste("GVA Contribution by Sector in", location, 
-                      paste0("(", start_year, "-", end_year, ")")),
-        x = NULL,
-        y = "Percentage",
-        fill = "Sector"
-      ) +
-      theme_minimal() +
-      theme(
-        plot.title = element_text(size = 14, face = "bold"),
-        axis.text.x = element_text(angle = 45, hjust = 1, size = 8, 
-                                   face = "bold"),
-        legend.position = "bottom",
-        legend.title = element_blank()
-      ) +
-      scale_y_continuous(labels = scales::percent_format()) +
-      scale_x_continuous(breaks = unique(loc_data$Year)) +
-      # Add labels and connecting lines with corrected positioning
-      geom_text(
-        data = label_data %>% 
-          filter(Year == start_year | Year == end_year),
-        aes(x = Year, y = pos, label = perc, group = Sector,
-            hjust = ifelse(Year == start_year, 1.1, -0.1)),  # Adjusted hjust
-        size = 3,
-        fontface = "bold"
-      ) +
-      geom_line(
-        data = label_data %>% 
-          filter(Year == start_year | Year == end_year),
-        aes(x = Year, y = pos, group = Sector),
-        linetype = "dotted", 
-        color = "gray50"
-      )
+    }
     
     # Save plot
     filename <- paste0(
       "GVA_Sector_Frontier-Cities_Rest-of-MENA-Cities_", 
-      start_year, "-", end_year, "_",
+      start_year, if (end_year != start_year) paste0("-", end_year), "_",
       gsub(" ", "_", location), 
       ".png"
     )
@@ -1085,7 +1117,8 @@ create_gva_visualizations <- function(data, year_range = c(2001, 2019),
 }
 
 create_gva_visualizations(oe_comparators2
-                          , year_range = c(2001, 2019)
+                          # , year_range =  c(2001, 2019)
+                          , year_range =  c(2019, 2019)
                           , output_dir = here::here("Output", "MENA")
 )
 
@@ -1096,21 +1129,21 @@ oe_mena <- oe_mena %>%
   mutate(Total_Emp = as.numeric(EMPTOTT),
          Public_Services_Emp = as.numeric(EMPO_Q),
          Industry_Emp = as.numeric(EMPB_F),
-         Financial_Busines_Serices_Emp = as.numeric(EMPK_N),
-         Consumer_services_Emp = as.numeric(EMPGIR_U),
+         Financial_Business_Services_Emp = as.numeric(EMPK_N),
+         Consumer_Services_Emp = as.numeric(EMPGIR_U),
          Agriculture_Emp = as.numeric(EMPA),
          Transport_Information_Communic_Services_Emp = as.numeric(EMPHJ)) %>%
   mutate(Public_Services_EMP_Pct = Public_Services_Emp / Total_Emp,
          Industry_EMP_Pct = Industry_Emp / Total_Emp ,
-         Financial_Busines_Serices_EMP_Pct = Financial_Busines_Serices_Emp / Total_Emp,
-         Consumer_services_EMP_Pct = Consumer_services_Emp / Total_Emp,
+         Financial_Business_Services_EMP_Pct = Financial_Business_Services_Emp / Total_Emp,
+         Consumer_Services_EMP_Pct = Consumer_Services_Emp / Total_Emp,
          Agriculture_EMP_Pct = Agriculture_Emp / Total_Emp,
          Transport_Information_Communic_Services_EMP_Pct = Transport_Information_Communic_Services_Emp / Total_Emp)
 
 # 6 warnings!!
 
-create_gva_visualizations <- function(data, year_range = c(2001, 2019), 
-                                      output_dir = here::here("Output", "India")) {
+create_emp_visualizations <- function(data, year_range = c(2001, 2019), 
+                                      output_dir = here::here("Output", "MENA")) {
   
   # Data preparation
   pie_data <- data %>%
@@ -1126,11 +1159,9 @@ create_gva_visualizations <- function(data, year_range = c(2001, 2019),
       Year = as.numeric(Year)
     )
   
-  # Create directory if it doesn't exist
-  dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
-  
   # Function to create single location plot
   create_location_plot <- function(loc_data) {
+    
     # Get location name
     location <- unique(loc_data$Location)
     
@@ -1151,54 +1182,89 @@ create_gva_visualizations <- function(data, year_range = c(2001, 2019),
       ) %>%
       ungroup()
     
-    # Create plot
-    p <- ggplot(loc_data, aes(x = Year, y = Percentage, fill = Sector)) +
-      geom_area(position = "fill", alpha = 0.8) +
-      scale_fill_manual(
-        values = c(
-          wes_palette("Zissou1", n = length(unique(loc_data$Sector)), 
-                      type = "continuous"), 
-          "#D3D3D3"
+    # Create plot based on the number of years
+    if (length(unique(loc_data$Year)) == 1) {
+      # Single year: create a stacked bar chart
+      p <- ggplot(loc_data, aes(x = factor(Year), y = Percentage, fill = Sector)) +
+        geom_bar(stat = "identity", alpha = 0.8) +
+        scale_fill_manual(
+          values = c(
+            wes_palette("Zissou1", n = length(unique(loc_data$Sector)), 
+                        type = "continuous"), 
+            "#D3D3D3"
+          )
+        ) +
+        labs(
+          title = paste("Employment by Sector in", location, 
+                        paste0("(", start_year, ")")),
+          x = NULL,
+          y = "Percentage",
+          fill = "Sector"
+        ) +
+        theme_minimal() +
+        theme(
+          plot.title = element_text(size = 14, face = "bold"),
+          axis.text.x = element_text(size = 8, face = "bold"),
+          legend.position = "bottom",
+          legend.title = element_blank()
+        ) +
+        scale_y_continuous(labels = scales::percent_format()) +
+        geom_text( data = label_data,
+          aes(x = factor(Year), y = pos, label = perc, group = Sector),
+          size = 3,
+          fontface = "bold"
+        ) 
+      
+    } else {
+      # Multiple years: create an area chart
+      p <- ggplot(loc_data, aes(x = Year, y = Percentage, fill = Sector)) +
+        geom_area(position = "fill", alpha = 0.8) +
+        scale_fill_manual(
+          values = c(
+            wes_palette("Zissou1", n = length(unique(loc_data$Sector)), 
+                        type = "continuous"), 
+            "#D3D3D3"
+          )
+        ) +
+        labs(
+          title = paste("Employment by Sector in", location, 
+                        paste0("(", start_year, "-", end_year, ")")),
+          x = NULL,
+          y = "Percentage",
+          fill = "Sector"
+        ) +
+        theme_minimal() +
+        theme(
+          plot.title = element_text(size = 14, face = "bold"),
+          axis.text.x = element_text(angle = 45, hjust = 1, size = 8, 
+                                     face = "bold"),
+          legend.position = "bottom",
+          legend.title = element_blank()
+        ) +
+        scale_y_continuous(labels = scales::percent_format()) +
+        scale_x_continuous(breaks = unique(loc_data$Year)) +
+        # Add labels and connecting lines with corrected positioning
+        geom_text(
+          data = label_data %>% 
+            filter(Year == start_year | Year == end_year),
+          aes(x = Year, y = pos, label = perc, group = Sector,
+              hjust = ifelse(Year == start_year, 1.1, -0.1)),  # Adjusted hjust
+          size = 3,
+          fontface = "bold"
+        ) +
+        geom_line(
+          data = label_data %>% 
+            filter(Year == start_year | Year == end_year),
+          aes(x = Year, y = pos, group = Sector),
+          linetype = "dotted", 
+          color = "gray50"
         )
-      ) +
-      labs(
-        title = paste("Employment by Sector in", location, 
-                      paste0("(", start_year, "-", end_year, ")")),
-        x = NULL,
-        y = "Percentage",
-        fill = "Sector"
-      ) +
-      theme_minimal() +
-      theme(
-        plot.title = element_text(size = 14, face = "bold"),
-        axis.text.x = element_text(angle = 45, hjust = 1, size = 8, 
-                                   face = "bold"),
-        legend.position = "bottom",
-        legend.title = element_blank()
-      ) +
-      scale_y_continuous(labels = scales::percent_format()) +
-      scale_x_continuous(breaks = unique(loc_data$Year)) +
-      # Add labels and connecting lines with corrected positioning
-      geom_text(
-        data = label_data %>% 
-          filter(Year == start_year | Year == end_year),
-        aes(x = Year, y = pos, label = perc, group = Sector,
-            hjust = ifelse(Year == start_year, 1.1, -0.1)),  # Adjusted hjust
-        size = 3,
-        fontface = "bold"
-      ) +
-      geom_line(
-        data = label_data %>% 
-          filter(Year == start_year | Year == end_year),
-        aes(x = Year, y = pos, group = Sector),
-        linetype = "dotted", 
-        color = "gray50"
-      )
+    }
     
     # Save plot
     filename <- paste0(
       "Employment_Sector_Frontier-Cities_Rest-of-MENA-Cities_", 
-      start_year, "-", end_year, "_",
+      start_year, if (end_year != start_year) paste0("-", end_year), "_",
       gsub(" ", "_", location), 
       ".png"
     )
@@ -1222,11 +1288,11 @@ create_gva_visualizations <- function(data, year_range = c(2001, 2019),
   return(plots)
 }
 
-create_gva_visualizations(oe_mena 
-                          , year_range = c(2001, 2019)
+create_emp_visualizations(oe_mena 
+                          # , year_range =  c(2001, 2019)
+                            , year_range = c(2019, 2019)
                           , output_dir = here::here("Output", "MENA")
                          )
-
 
 
 
