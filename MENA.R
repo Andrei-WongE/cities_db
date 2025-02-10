@@ -199,8 +199,8 @@ oe_mena %>%
 
 ## Frontier distance----
 data_frontier <- data %>%
-  mutate(GDPTOTUSC = as.numeric(GDPTOTUSC),
-         POPTOTT = as.numeric(POPTOTT),
+  mutate(GDPTOTUSC = as.numeric(GDPTOTUSC)  * 1e3, # Convert to thousands
+         POPTOTT = as.numeric(POPTOTT),  
          GDP = as.numeric(GDPTOTPPPC)) %>%
   filter(Year %in% c(2019)) %>%
   filter(Location != Country) %>% 
@@ -232,17 +232,16 @@ frontier_cities <- data_frontier %>%
 View(frontier_cities)
 
 # Step 3: Estimate frontier regression
-frontier_model <- lm(log(GDP) ~ log(POPTOTT), data = data_frontier)
+frontier_model <- lm(log(GDP) ~ log(POPTOTT), data = frontier_cities)
 
 # Step 4: Calculate distances to frontier for all cities
 results <- data_frontier %>%
   mutate(
     # Predicted frontier GDP for each city's population
-    predicted_frontier = exp(predict(frontier_model, 
-                                     newdata = data.frame(POPTOTT = POPTOTT))),
+    predicted_frontier = predict(frontier_model, newdata = data.frame(POPTOTT = POPTOTT)),
     # Distance to frontier as percentage difference
-    frontier_distance = ((GDP - predicted_frontier) / predicted_frontier) * 100
-  )
+    frontier_distance = ((predicted_frontier - log(GDP)) / predicted_frontier) * 100
+    )
 
 # Step 5: Calculate distances specifically for MENA cities and find top 10% all
 # unique_deciles <- unique(quantile(data_frontier$POPTOTT
@@ -293,21 +292,22 @@ frontier_model2 <- lm(log(GDP) ~ log(POPTOTT), data = frontier_cities)
 
 results2 <- results %>%
   mutate(
-    predicted_gdp_frontier2 = exp(predict(frontier_model2, newdata = results)),
+    predicted_gdp_frontier2 = predict(frontier_model2, newdata = results),
     residuals_frontier2 = log(GDP) - log(predicted_gdp_frontier2),
-    frontier_distance2 = ((GDP - predicted_gdp_frontier2) / predicted_gdp_frontier2) * 100
+    frontier_distance2 = ((predicted_gdp_frontier2 - log(GDP)) /
+                            predicted_gdp_frontier2 * 100)
   )
 
 # Step 7: Detect if MENA cities are above the frontier_model2 line
 closest_cities <- results2 %>%
   filter(Region == "MENA") %>%
   mutate(
-    above_line = residuals_frontier2 > 0
+    above_line = residuals_frontier2 < 0
   )
 
 # Average distance to frontier of ALL cities
-avg_frontier_distance <- mean(results$frontier_distance, na.rm = TRUE) 
-avg_frontier_distance_MENA <- mean(results$frontier_distance[results$Region == "MENA"], na.rm = TRUE) 
+avg_frontier_distance <- mean(results2$frontier_distance2, na.rm = TRUE) 
+avg_frontier_distance_MENA <- mean(results2$frontier_distance2[results2$Region == "MENA"], na.rm = TRUE) 
 
 
 (frontier_plot <- ggplot() +
@@ -345,7 +345,7 @@ avg_frontier_distance_MENA <- mean(results$frontier_distance[results$Region == "
                              pull(Location))),
     aes(x = log(POPTOTT), 
         y = log(GDP), 
-        label = paste0(Location, "\n(", round(frontier_distance, 1), "%)")),
+        label = paste0(Location, "\n(", round(frontier_distance2, 1), "%)")),
     size = 4, force = 10, box.padding = 0.8,
     point.padding = 0.3, max.overlaps = Inf,
     direction = "y", segment.size = 0.3,
@@ -359,7 +359,7 @@ avg_frontier_distance_MENA <- mean(results$frontier_distance[results$Region == "
              !Location %in% frontier_cities$Location),
     aes(x = log(POPTOTT), 
         y = log(GDP), 
-        label = paste0(Location, "\n(", round(frontier_distance, 1), "%)")),
+        label = paste0(Location, "\n(", round(frontier_distance2, 1), "%)")),
     size = 4, force = 10, box.padding = 0.8,
     point.padding = 0.3, max.overlaps = Inf,
     direction = "y", segment.size = 0.3,
@@ -399,7 +399,7 @@ avg_frontier_distance_MENA <- mean(results$frontier_distance[results$Region == "
     values = c(
       "Non-MENA frontier" = "#117a65",
       "MENA frontier" = "#abebc6",
-      "MENA above frontier" = "#a04000",
+      "MENA below frontier" = "#a04000",
       "Other MENA" = "#FFA07A",
       "Non-MENA non-frontier" = "grey90"
     ),
@@ -701,7 +701,7 @@ ggsave(filename = here::here("Output","MENA", "GDP_growth_2001-2019.png"),
 
 # Leading cities and comparators plots------
 # Get frontier cities in MENA
-frontier_cities_MENA <- mena_closest_cities %>% 
+frontier_cities_MENA <- results2 %>% # Changed from mena_closest_cities
   arrange(desc(frontier_distance)) %>%  
   slice_head(n = 15) %>%               # Take the top 15 cities
   pull("Location")                     
@@ -1052,15 +1052,15 @@ create_gva_visualizations <- function(data, year_range = c(2001, 2019),
         ) +
         theme_minimal() +
         theme(
-          plot.title = element_text(size = 14, face = "bold"),
-          axis.text.x = element_text(size = 8, face = "bold"),
+          plot.title = element_text(size = 16, face = "bold"),
+          axis.text.x = element_text(size = 12, face = "bold"),
           legend.position = "bottom",
           legend.title = element_blank()
         ) +
         scale_y_continuous(labels = scales::percent_format()) +
         geom_text( data = label_data,
           aes(x = factor(Year), y = pos, label = perc, group = Sector),
-          size = 3,
+          size = 5,
           fontface = "bold"
         ) 
       
@@ -1085,8 +1085,8 @@ create_gva_visualizations <- function(data, year_range = c(2001, 2019),
         ) +
         theme_minimal() +
         theme(
-          plot.title = element_text(size = 14, face = "bold"),
-          axis.text.x = element_text(angle = 45, hjust = 1, size = 8, 
+          plot.title = element_text(size = 16, face = "bold"),
+          axis.text.x = element_text(angle = 45, hjust = 1, size = 12, 
                                      face = "bold"),
           legend.position = "bottom",
           legend.title = element_blank()
@@ -1099,7 +1099,7 @@ create_gva_visualizations <- function(data, year_range = c(2001, 2019),
             filter(Year == start_year | Year == end_year),
           aes(x = Year, y = pos, label = perc, group = Sector,
               hjust = ifelse(Year == start_year, 1.1, -0.1)),  # Adjusted hjust
-          size = 3,
+          size = 5,
           fontface = "bold"
         ) +
         geom_line(
@@ -1225,15 +1225,15 @@ create_emp_visualizations <- function(data, year_range = c(2001, 2019),
         ) +
         theme_minimal() +
         theme(
-          plot.title = element_text(size = 14, face = "bold"),
-          axis.text.x = element_text(size = 8, face = "bold"),
+          plot.title = element_text(size = 16, face = "bold"),
+          axis.text.x = element_text(size = 12, face = "bold"),
           legend.position = "bottom",
           legend.title = element_blank()
         ) +
         scale_y_continuous(labels = scales::percent_format()) +
         geom_text( data = label_data,
           aes(x = factor(Year), y = pos, label = perc, group = Sector),
-          size = 3,
+          size = 5,
           fontface = "bold"
         ) 
       
@@ -1257,8 +1257,8 @@ create_emp_visualizations <- function(data, year_range = c(2001, 2019),
         ) +
         theme_minimal() +
         theme(
-          plot.title = element_text(size = 14, face = "bold"),
-          axis.text.x = element_text(angle = 45, hjust = 1, size = 8, 
+          plot.title = element_text(size = 16, face = "bold"),
+          axis.text.x = element_text(angle = 45, hjust = 1, size = 12, 
                                      face = "bold"),
           legend.position = "bottom",
           legend.title = element_blank()
@@ -1271,7 +1271,7 @@ create_emp_visualizations <- function(data, year_range = c(2001, 2019),
             filter(Year == start_year | Year == end_year),
           aes(x = Year, y = pos, label = perc, group = Sector,
               hjust = ifelse(Year == start_year, 1.1, -0.1)),  # Adjusted hjust
-          size = 3,
+          size = 5,
           fontface = "bold"
         ) +
         geom_line(
