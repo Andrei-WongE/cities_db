@@ -118,8 +118,11 @@ mena_countries <- c(
 
 id <- UCDB_all$GHS_UCDB_THEME_GHSL_GLOBE_R2024A$ID_UC_G0
 density <- UCDB_all$GHS_UCDB_THEME_GHSL_GLOBE_R2024A$GH_XST_D30_2020
+plausibility <- UCDB_all$GHS_UCDB_THEME_GENERAL_CHARACTERISTICS_GLOBE_R2024A$GC_PLS_SCR_2025
 geom <- UCDB_all$GHS_UCDB_THEME_GHSL_GLOBE_R2024A$geom
-density_ucdb <- data.frame(id = as.numeric(id), Density = as.numeric(density), geom = geom)
+density_ucdb <- data.frame(id = as.numeric(id), Density = as.numeric(density)
+                           , Plausibility  = as.factor(plausibility)
+                           , geom = geom)
 
 id <- UCDB_all$GHS_UCDB_THEME_EMISSIONS_GLOBE_R2024A$ID_UC_G0
 pm25 <- UCDB_all$GHS_UCDB_THEME_EMISSIONS_GLOBE_R2024A$EM_PM2_TOT_2020
@@ -148,6 +151,7 @@ pollution_ucdb <- density_ucdb %>%
                   full_join(pm25_ucdb, by = c("id")) %>%
                   full_join(geo_ucdb, by = c("id")) %>% 
                   full_join(econ_ucdb, by = c("id")) %>%
+                  dplyr::filter(Plausibility == "High") %>%
                   mutate(log_density = log(Density)) %>% 
                   mutate(log_concentration = log(PM2.5_concentration)) %>%
                   mutate(log_gdp = log(GDP)) %>%
@@ -195,14 +199,15 @@ plot_index <- function(index) {
     geom_smooth(method = "lm", se = FALSE) +  # Optional: Add a linear regression line
     theme_minimal() +
     theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-    labs(x = "Log GDP", y = index
+    labs(x = "Log GDP", y = gsub("_", "", index)
          # , title = paste(index, "vs Log Density (2020)")
     ) +
     scale_color_manual(values = c("MENA" = "red", "Other" = "blue"))
   
   print(plot)
   
-  ggsave(filename = here("Figures", paste0(index, "_vs_Log_GDP_2020.png")), plot = plot)
+  ggsave(filename = here("Figures", paste0(index, "_vs_Log_GDP_2020.png"))
+         , plot = plot, width = 12, height = 10, dpi = 800)
 }
 
 walk(index, plot_index)
@@ -249,21 +254,21 @@ plot2 <- ggplot(plot_data,
   ) +
   theme_minimal() +
   theme(
-    plot.title = element_text(size = 11),
-    axis.text = element_text(size = 9),
+    plot.title = element_text(size = 16, face = "bold"),
+    axis.text = element_text(size = 12, face = "bold"),
     panel.grid.minor = element_blank(),
     panel.grid.major.y = element_blank(),
     legend.position = "none"
   ) +
-  scale_x_continuous(limits = c(0, 200)) +
+  scale_x_continuous(limits = c(0, 150)) +
   scale_fill_manual(values = c("TRUE" = "red"))  +
   labs(y = NULL) +
   annotate("text", x = Inf, y = plot_data$Regions2
-           , label = paste0(" (n=", plot_data$n, ")"), 
-           hjust = 1, vjust = 0.5, size = 3)
+           , label = paste0(" (n = ", plot_data$n, ")"), 
+           hjust = 1, vjust = 0.5, size = 4)
 
 ggsave(filename = here("Figures", "PM2.5_concentration_vs_Log_Density_2020.png")
-, plot = plot2)
+, plot = plot2, width = 12, height = 10, dpi = 800)
 plot2
 
           dplyr::select(,"Country"
@@ -535,3 +540,75 @@ plot_index <- function(index) {
 
 walk(index, plot_index)
 
+# Quality of life
+-----------------
+cost_living <- readRDS(here("Data", "NUMBEO","data_rankings_past.rds"))
+names(cost_living)
+
+# (matching_cities_cost_living <- stringdist_join(
+#   cost_living, oe_data %>% filter(Country != Location),
+#   by = c("country" = "Country", "city_name" = "Location"),
+#   mode = "full",
+#   method = "jw" # 
+#   #, distance_col = "distance"
+# )
+# )
+
+(matching_cities_cost_living <- left_join(
+  cost_living, oe_data %>% filter(Country != Location),
+  by = c("country" = "Country", "city_name" = "Location")
+)
+)
+
+matching_cities_cost_living <- matching_cities_cost_living %>% filter(Year.x == Year.y) %>% 
+  rename(Year = Year.x) %>% dplyr::select(-Year.y)
+# For 2019, onlt 30pct of OE cities have a match in NUMBEO
+
+matching_cities_cost_living <- matching_cities_cost_living %>% 
+  left_join(oe_geo, by = c("Location" = "OE_FUANAME")) %>% 
+  dplyr::select(-geometry)
+
+matching_cities_cost_living <- matching_cities_cost_living %>%
+  rename(Area = area_km2) 
+# %>%
+#   dplyr::select(-area.y)
+
+matching_cities_cost_living <- matching_cities_cost_living %>% 
+  mutate(density = if_else(is.na(Area), NA_real_, as.numeric(POPTOTT) * 1e3/ as.numeric(Area)))
+
+matching_cities_cost_living <- matching_cities_cost_living %>% 
+  mutate(Region = case_when(
+    Country %in% mena_countries ~ "MENA",
+    TRUE ~ "Not_MENA"
+  )) %>% 
+  mutate(log_density = log(density))
+
+summary(matching_cities_cost_living %>% filter(Country != Location) %>% pull(density))
+
+# Min. 1st Qu.  Median    Mean 3rd Qu.    Max.    NA's 
+#      17     744    1459    2845    2590  122506     363
+
+summary_details(matching_cities_cost_living %>% filter(Country != Location) %>% filter(Year == 2019) 
+                , "log_density", "Region", "MENA")
+
+
+index <- c("pollution_index", "exp_pollution_index")
+
+plot_index <- function(index) {
+  plot <- matching_cities_cost_living %>% 
+    filter(Country != Location) %>% 
+    filter(Year == 2019) %>%
+    ggplot(aes(x = log_density, y = .data[[index]], color = Region)) +
+    geom_point() +
+    geom_smooth(method = "lm", se = FALSE) +  # Optional: Add a linear regression line
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+    labs(x = "Log Density", y = index
+         # , title = paste(index, "vs Log Density (2019)")
+    ) +
+    scale_color_manual(values = c("MENA" = "red", "Other" = "blue"))
+  
+  print(plot)
+  
+  ggsave(filename = here("Figures", paste0(index, "_vs_Log_Density_2019.png")), plot = plot)
+}
