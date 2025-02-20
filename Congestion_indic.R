@@ -216,16 +216,14 @@ create_pollution_data <- function(UCDB_all_2019, UCDB_FUA, cores = parallel::det
   pollution_lookup <- UCDB_all_2019 %>%
     dplyr::select(ID_HDC_G0, E_CPM2_T14, AREA)
   
-  # Configure progress reporting
-  handlers(global = TRUE)
-  handlers("progress")
+  # Configure progress reporting, corrected
+  plan(multisession, workers = cores)
   
   # Function to process a single FUA with progress reporting
   process_fua <- function(fua_row, lookup_table, p) {
-    p()  # Update progress
     
-    ids <- extract_UC_IDs(fua_row$UC_IDs)
-    
+    ids <- extract_UC_IDs(fua_row$UC_IDs)    
+
     if (!all(is.na(ids))) {
       matches <- lookup_table %>% 
         filter(ID_HDC_G0 %in% ids)
@@ -243,14 +241,19 @@ create_pollution_data <- function(UCDB_all_2019, UCDB_FUA, cores = parallel::det
     return(fua_row)
   }
   
-  # Progress tracking
+  # Progress tracking & reporting, corrected
+  handlers(global = TRUE)
+  handlers("progress")
+  
   with_progress({
     p <- progressor(steps = nrow(UCDB_FUA))
     
     result <- UCDB_FUA %>%
       split(1:nrow(.)) %>%
-      future_map_dfr(~process_fua(., pollution_lookup, p),
-                     .options = furrr_options(seed = TRUE))
+      future_map_dfr(function(row) {
+        p(1)  # Explicitly increment by 1
+        process_fua(row, pollution_lookup)
+      }, .options = furrr_options(seed = TRUE))
     
     return(result)
   })
