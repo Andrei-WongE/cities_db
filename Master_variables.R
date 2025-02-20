@@ -31,7 +31,7 @@ groundhog.day = "2024-04-25" #"2020-05-12"
 
 pkgs = c("dplyr", "tidyverse", "janitor", "sf"
          , "ggplot2","xfun", "remotes", "sp", "spdep"
-         , "foreach", "doParallel", "parallel", "progress"
+         , "foreach", "doParallel", "parallel", "progressr"
          , "doSNOW", "purrr", "patchwork"
          , "haven", "openxlsx", "MASS", "reticulate"
          , "future", "furrr", "data.table","leaflet"

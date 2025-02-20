@@ -42,6 +42,13 @@ UCDB_all <- read_gpkg_layers(here("Data", "GHS24", "GHS_UCDB_GLOBE_R2024A.gpkg")
                              , selected_layers = NULL
                              , quiet = FALSE)
 
+UCDB_FUA <- read_gpkg_layers(here("Data", "GHS_FUA_19", "GHS_FUA_UCDB2015_GLOBE_R2019A_54009_1K_V1_0.gpkg")
+                             , selected_layers = NULL
+                             , quiet = FALSE)
+
+UCDB_all_2019 <- read_gpkg_layers(here("Data", "GHS19", "GHS_STAT_UCDB2015MT_GLOBE_R2019A_V1_2.gpkg")
+                             , selected_layers = NULL
+                             , quiet = FALSE)
 mena_countries <- c(
   "Algeria",
   "Bahrain",
@@ -116,6 +123,8 @@ mena_countries <- c(
 #               TRUE ~ "Not_MENA"
 #             ))
 
+# Urban centre 
+
 id <- UCDB_all$GHS_UCDB_THEME_GHSL_GLOBE_R2024A$ID_UC_G0
 density <- UCDB_all$GHS_UCDB_THEME_GHSL_GLOBE_R2024A$GH_XST_D30_2020
 plausibility <- UCDB_all$GHS_UCDB_THEME_GENERAL_CHARACTERISTICS_GLOBE_R2024A$GC_PLS_SCR_2025
@@ -186,7 +195,71 @@ summary_details(pollution_ucdb
                 , "Region"
                 , "MENA"
                 )
+# FUA, merge using UC_ID1 (Urban Centre IDs contained in each eFUA, as GHS-UCDB “ID_HDC_G0” 
+# and area weighed aggregation
 
+## Split UC_IDs string and extract ID_HDC_G0 values
+extract_UC_IDs <- function(ids_string) {
+  if(is.na(ids_string)) return(NA)
+  return(strsplit(ids_string, ",|;| ")[[1]])
+}
+
+## New dataset, was slow
+create_pollution_data <- function(UCDB_all_2019, UCDB_FUA, cores = parallel::detectCores() - 1) {
+    
+  require(furrr)
+  require(future)
+  require(progressr)
+  
+  
+  # Create a lookup table from UCDB_all_2019
+  pollution_lookup <- UCDB_all_2019 %>%
+    dplyr::select(ID_HDC_G0, E_CPM2_T14, AREA)
+  
+  # Configure progress reporting
+  handlers(global = TRUE)
+  handlers("progress")
+  
+  # Function to process a single FUA with progress reporting
+  process_fua <- function(fua_row, lookup_table, p) {
+    p()  # Update progress
+    
+    ids <- extract_UC_IDs(fua_row$UC_IDs)
+    
+    if (!all(is.na(ids))) {
+      matches <- lookup_table %>% 
+        filter(ID_HDC_G0 %in% ids)
+      
+      if (nrow(matches) > 0) {
+        fua_row$E_CPM2_T14_agg <- sum(matches$E_CPM2_T14 * matches$AREA, na.rm = TRUE) / 
+          sum(matches$AREA, na.rm = TRUE)
+      } else {
+        fua_row$E_CPM2_T14_agg <- NA
+      }
+    } else {
+      fua_row$E_CPM2_T14_agg <- NA
+    }
+    
+    return(fua_row)
+  }
+  
+  # Progress tracking
+  with_progress({
+    p <- progressor(steps = nrow(UCDB_FUA))
+    
+    result <- UCDB_FUA %>%
+      split(1:nrow(.)) %>%
+      future_map_dfr(~process_fua(., pollution_lookup, p),
+                     .options = furrr_options(seed = TRUE))
+    
+    return(result)
+  })
+}
+
+pollution_ucdb2 <- create_pollution_data(UCDB_all_2019, UCDB_FUA)
+
+
+# Plots
 
 index <- c("PM2.5", "PM2.5_concentration")
 
