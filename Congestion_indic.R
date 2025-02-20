@@ -195,8 +195,7 @@ summary_details(pollution_ucdb
                 , "Region"
                 , "MENA"
                 )
-# FUA, merge using UC_ID1 (Urban Centre IDs contained in each eFUA, as GHS-UCDB “ID_HDC_G0” 
-# and area weighed aggregation
+# FUA, merge using UC_ID1 (Urban Centre IDs contained in each eFUA, as GHS-UCDB “ID_HDC_G0”
 
 ## Split UC_IDs string and extract ID_HDC_G0 values
 extract_UC_IDs <- function(ids_string) {
@@ -204,28 +203,32 @@ extract_UC_IDs <- function(ids_string) {
   return(strsplit(ids_string, ",|;| ")[[1]])
 }
 
-## New dataset, was slow
-create_pollution_data <- function(UCDB_all_2019, UCDB_FUA, cores = parallel::detectCores() - 1) {
-    
-  require(furrr)
-  require(future)
-  require(progressr)
-  
+## New dataset, slow but simple
+create_pollution_data <- function(UCDB_all_2019, UCDB_FUA) {
   
   # Create a lookup table from UCDB_all_2019
   pollution_lookup <- UCDB_all_2019 %>%
-    dplyr::select(ID_HDC_G0, E_CPM2_T14, AREA, GRGN_L1, CTR_MN_NM)
+    dplyr::select(ID_HDC_G0, E_CPM2_T14, AREA)
   
-  # Configure progress reporting, corrected
-  plan(multisession, workers = cores)
+  # Setup progress bar
+  pb <- progress_bar$new(
+    format = "  Processing [:bar] :percent eta: :eta",
+    total = nrow(UCDB_FUA),
+    clear = FALSE,
+    width = 60
+  )
   
-  # Function to process a single FUA with progress reporting
-  process_fua <- function(fua_row, lookup_table, p) {
+  # Process each FUA record with progress updates
+  result <- data.frame()
+  
+  for (i in 1:nrow(UCDB_FUA)) {
+    pb$tick()
     
-    ids <- extract_UC_IDs(fua_row$UC_IDs)    
-
+    fua_row <- UCDB_FUA[i,]
+    ids <- extract_UC_IDs(fua_row$UC_IDs)
+    
     if (!all(is.na(ids))) {
-      matches <- lookup_table %>% 
+      matches <- pollution_lookup %>% 
         filter(ID_HDC_G0 %in% ids)
       
       if (nrow(matches) > 0) {
@@ -238,45 +241,32 @@ create_pollution_data <- function(UCDB_all_2019, UCDB_FUA, cores = parallel::det
       fua_row$E_CPM2_T14_agg <- NA
     }
     
-    return(fua_row)
+    if (i == 1) {
+      result <- fua_row
+    } else {
+      result <- rbind(result, fua_row)
+    }
   }
   
-  # Progress tracking & reporting, corrected
-  handlers(global = TRUE)
-  handlers("progress")
-  
-  with_progress({
-    p <- progressor(steps = nrow(UCDB_FUA))
-    
-    result <- UCDB_FUA %>%
-      st_drop_geometry() %>%
-      split(1:nrow(.)) %>%
-      future_map_dfr(function(row) {
-        p(1)  # Explicitly increment by 1
-        process_fua(row, pollution_lookup)
-      }, .options = furrr_options(seed = TRUE))
-    
-    return(result)
-  })
+  return(result)
 }
 
 pollution_ucdb2 <- create_pollution_data(UCDB_all_2019, UCDB_FUA)
 
 mena_countries2 <- c("Algeria", "Bahrain", "Djibouti", "Egypt", "Iran", "Iraq", "Israel", "Jordan", "Kuwait", 
-                    "Lebanon", "Libya", "Mauritania", "Morocco", "Oman", "Palestine", "Qatar", 
-                    "Saudi Arabia", "Somalia", "Sudan", "Syria", "Tunisia", "United Arab Emirates", 
-                    "Yemen")
+                     "Lebanon", "Libya", "Mauritania", "Morocco", "Oman", "Palestine", "Qatar", 
+                     "Saudi Arabia", "Somalia", "Sudan", "Syria", "Tunisia", "United Arab Emirates", 
+                     "Yemen")
 
 pollution_ucdb2 <- pollution_ucdb2 %>% 
-                   st_join(UCDB_FUA, by = "UC_IDs") %>% 
-                   mutate(Country == TR_MN_NM,
-                          GRGN_L1 == Region) %>% 
-                   mutate(Region = case_when(
-                    Country %in% mena_countries2 ~ "MENA",
-                    TRUE ~ Region
-                         ))
-                          
-                  
+  st_join(UCDB_FUA, by = "UC_IDs") %>% 
+  mutate(Country == TR_MN_NM,
+         GRGN_L1 == Region) %>% 
+  mutate(Region = case_when(
+    Country %in% mena_countries2 ~ "MENA",
+    TRUE ~ Region
+  ))
+
 
 # Plots
 
