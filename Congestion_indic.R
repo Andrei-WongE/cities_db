@@ -214,7 +214,7 @@ create_pollution_data <- function(UCDB_all_2019, UCDB_FUA, cores = parallel::det
   
   # Create a lookup table from UCDB_all_2019
   pollution_lookup <- UCDB_all_2019 %>%
-    dplyr::select(ID_HDC_G0, E_CPM2_T14, AREA)
+    dplyr::select(ID_HDC_G0, E_CPM2_T14, AREA, GRGN_L1, CTR_MN_NM)
   
   # Configure progress reporting, corrected
   plan(multisession, workers = cores)
@@ -249,6 +249,7 @@ create_pollution_data <- function(UCDB_all_2019, UCDB_FUA, cores = parallel::det
     p <- progressor(steps = nrow(UCDB_FUA))
     
     result <- UCDB_FUA %>%
+      st_drop_geometry() %>%
       split(1:nrow(.)) %>%
       future_map_dfr(function(row) {
         p(1)  # Explicitly increment by 1
@@ -261,6 +262,21 @@ create_pollution_data <- function(UCDB_all_2019, UCDB_FUA, cores = parallel::det
 
 pollution_ucdb2 <- create_pollution_data(UCDB_all_2019, UCDB_FUA)
 
+mena_countries2 <- c("Algeria", "Bahrain", "Djibouti", "Egypt", "Iran", "Iraq", "Israel", "Jordan", "Kuwait", 
+                    "Lebanon", "Libya", "Mauritania", "Morocco", "Oman", "Palestine", "Qatar", 
+                    "Saudi Arabia", "Somalia", "Sudan", "Syria", "Tunisia", "United Arab Emirates", 
+                    "Yemen")
+
+pollution_ucdb2 <- pollution_ucdb2 %>% 
+                   st_join(UCDB_FUA, by = "UC_IDs") %>% 
+                   mutate(Country == TR_MN_NM,
+                          GRGN_L1 == Region) %>% 
+                   mutate(Region = case_when(
+                    Country %in% mena_countries2 ~ "MENA",
+                    TRUE ~ Region
+                         ))
+                          
+                  
 
 # Plots
 
