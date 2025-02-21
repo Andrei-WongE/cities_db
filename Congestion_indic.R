@@ -127,7 +127,7 @@ mena_countries <- c(
 
 id <- UCDB_all$GHS_UCDB_THEME_GHSL_GLOBE_R2024A$ID_UC_G0
 density <- UCDB_all$GHS_UCDB_THEME_GHSL_GLOBE_R2024A$GH_XST_D30_2020
-plausibility <- UCDB_all$GHS_UCDB_THEME_GENERAL_CHARACTERISTICS_GLOBE_R2024A$GC_PLS_SCR_2025
+plausibility <- UCDB_all$GHS_UCDB_THEME_GENERAL_CHARACTERISTICS_GLOBE_R2024A
 geom <- UCDB_all$GHS_UCDB_THEME_GHSL_GLOBE_R2024A$geom
 density_ucdb <- data.frame(id = as.numeric(id), Density = as.numeric(density)
                            , Plausibility  = as.factor(plausibility)
@@ -195,77 +195,6 @@ summary_details(pollution_ucdb
                 , "Region"
                 , "MENA"
                 )
-# FUA, merge using UC_ID1 (Urban Centre IDs contained in each eFUA, as GHS-UCDB “ID_HDC_G0”
-
-## Split UC_IDs string and extract ID_HDC_G0 values
-extract_UC_IDs <- function(ids_string) {
-  if(is.na(ids_string)) return(NA)
-  return(strsplit(ids_string, ",|;| ")[[1]])
-}
-
-## New dataset, slow but simple
-create_pollution_data <- function(UCDB_all_2019, UCDB_FUA) {
-  
-  # Create a lookup table from UCDB_all_2019
-  pollution_lookup <- UCDB_all_2019 %>%
-    dplyr::select(ID_HDC_G0, E_CPM2_T14, AREA)
-  
-  # Setup progress bar
-  pb <- progress_bar$new(
-    format = "  Processing [:bar] :percent eta: :eta",
-    total = nrow(UCDB_FUA),
-    clear = FALSE,
-    width = 60
-  )
-  
-  # Process each FUA record with progress updates
-  result <- data.frame()
-  
-  for (i in 1:nrow(UCDB_FUA)) {
-    pb$tick()
-    
-    fua_row <- UCDB_FUA[i,]
-    ids <- extract_UC_IDs(fua_row$UC_IDs)
-    
-    if (!all(is.na(ids))) {
-      matches <- pollution_lookup %>% 
-        filter(ID_HDC_G0 %in% ids)
-      
-      if (nrow(matches) > 0) {
-        fua_row$E_CPM2_T14_agg <- sum(matches$E_CPM2_T14 * matches$AREA, na.rm = TRUE) / 
-          sum(matches$AREA, na.rm = TRUE)
-      } else {
-        fua_row$E_CPM2_T14_agg <- NA
-      }
-    } else {
-      fua_row$E_CPM2_T14_agg <- NA
-    }
-    
-    if (i == 1) {
-      result <- fua_row
-    } else {
-      result <- rbind(result, fua_row)
-    }
-  }
-  
-  return(result)
-}
-
-pollution_ucdb2 <- create_pollution_data(UCDB_all_2019, UCDB_FUA)
-
-mena_countries2 <- c("Algeria", "Bahrain", "Djibouti", "Egypt", "Iran", "Iraq", "Israel", "Jordan", "Kuwait", 
-                     "Lebanon", "Libya", "Mauritania", "Morocco", "Oman", "Palestine", "Qatar", 
-                     "Saudi Arabia", "Somalia", "Sudan", "Syria", "Tunisia", "United Arab Emirates", 
-                     "Yemen")
-
-pollution_ucdb2 <- pollution_ucdb2 %>% 
-  st_join(UCDB_FUA, by = "UC_IDs") %>% 
-  mutate(Country == TR_MN_NM,
-         GRGN_L1 == Region) %>% 
-  mutate(Region = case_when(
-    Country %in% mena_countries2 ~ "MENA",
-    TRUE ~ Region
-  ))
 
 
 # Plots
@@ -325,7 +254,7 @@ plot_data <- bind_rows(plot_data, mena_data) %>%
   mutate(n = n()) %>%
   ungroup()
 
-  
+
 plot2 <- ggplot(plot_data,
                 aes(x = PM2.5_concentration, y = Regions2, fill = Regions2 == "MENA")) +
   geom_boxplot(outlier.size = 2, outlier.alpha = 0.6) +
@@ -350,9 +279,216 @@ plot2 <- ggplot(plot_data,
            hjust = 1, vjust = 0.5, size = 4)
 
 ggsave(filename = here("Figures", "PM2.5_concentration_vs_Log_Density_2020.png")
-, plot = plot2, width = 12, height = 10, dpi = 800)
+       , plot = plot2, width = 12, height = 10, dpi = 800)
 plot2
 
+
+# FUA, merge using UC_ID1 (Urban Centre IDs contained in each eFUA, as GHS-UCDB “ID_HDC_G0”-----
+
+## Split UC_IDs string and extract ID_HDC_G0 values
+extract_UC_IDs <- function(ids_string) {
+  if(is.na(ids_string)) return(NA)
+  return(strsplit(ids_string, ",|;| ")[[1]])
+}
+
+## New dataset, slow but simple
+create_pollution_data <- function(UCDB_all_2019, UCDB_FUA) {
+  
+  require(progress)
+  
+  # Create a lookup table from UCDB_all_2019
+  pollution_lookup <- UCDB_all_2019 %>%
+    dplyr::select(ID_HDC_G0, E_CPM2_T14, AREA, CTR_MN_NM, GRGN_L1)
+  
+  # Setup progress bar
+  pb <- progress_bar$new(
+    format = "  Processing [:bar] :percent eta: :eta",
+    total = nrow(UCDB_FUA),
+    clear = FALSE,
+    width = 60
+  )
+  
+  # Process each FUA record with progress updates
+  result <- data.frame()
+  
+  for (i in 1:nrow(UCDB_FUA)) {
+    pb$tick()
+    
+    fua_row <- UCDB_FUA[i,]
+    
+    # Case when only one UC_ID
+    if (fua_row$UC_num == 1) {
+      matches <- pollution_lookup %>% 
+        filter(ID_HDC_G0 == fua_row$UC_IDs)
+    
+      if (nrow(matches) > 0) {
+        fua_row$E_CPM2_T14_agg <- matches$E_CPM2_T14
+      } else {
+        fua_row$E_CPM2_T14_agg <- "Error, multiple matches"
+      }
+    
+   # Case when only more than one UC_ID
+    } else if (fua_row$UC_num > 1) {
+      ids <- extract_UC_IDs(fua_row$UC_IDs)
+      
+      if (!all(is.na(ids))) {
+        matches <- pollution_lookup %>% 
+          filter(ID_HDC_G0 %in% ids)
+        
+        if (nrow(matches) > 0) {
+          fua_row$E_CPM2_T14_agg <- sum(matches$E_CPM2_T14 * matches$AREA, na.rm = TRUE) / 
+            sum(matches$AREA, na.rm = TRUE)
+        } else {
+      #  Just in case of missing data    
+          fua_row$E_CPM2_T14_agg <- NA
+        }
+      #  Just in case there are no IDs    
+      } else {
+        fua_row$E_CPM2_T14_agg <- "No match"
+      }
+    }
+    
+    result <- rbind(result, fua_row)
+  }
+  
+  return(result)
+}
+
+# QA2_1V: quality code (0 – false positive, 1 – true positive, >1 uncertain) 10303 cases vs 13135 cases
+UCDB_all_2019 <- UCDB_all_2019 %>% 
+                 dplyr::filter(QA2_1V == 1) %>% 
+                 st_drop_geometry()
+
+pollution_ucdb2 <- create_pollution_data(UCDB_all_2019, UCDB_FUA)
+
+mena_countries2 <- c("Algeria", "Bahrain", "Djibouti", "Egypt", "Iran", "Iraq", "Israel", "Jordan", "Kuwait", 
+                     "Lebanon", "Libya", "Mauritania", "Morocco", "Oman", "Palestine", "Qatar", 
+                     "Saudi Arabia", "Somalia", "Sudan", "Syria", "Tunisia", "United Arab Emirates", 
+                     "Yemen")
+
+# Join with UCDB_all_2019 to get country and region names
+UCDB_all_2019_sub <- UCDB_all_2019 %>% 
+  dplyr::select(CTR_MN_NM, GRGN_L1) %>% 
+  group_by(CTR_MN_NM) %>%
+  distinct()
+
+pollution_ucdb2_merged <- pollution_ucdb2 %>% 
+  left_join(UCDB_all_2019_sub
+          , by = c("Cntry_name" = "CTR_MN_NM")
+          , relationship = "many-to-many"
+           ) %>% 
+  mutate(Country = Cntry_name,
+         Region = GRGN_L1,
+         PM2.5_concentration = E_CPM2_T14_agg
+         ) %>%
+  mutate(Region = case_when(
+    Country %in% mena_countries2 ~ "MENA",
+    TRUE ~ Region
+  ))
+
+# Issues with country mapping
+country_region_mapping <- c(
+  "BosniaandHerzegovina" = "Europe",
+  "BurkinaFaso" = "Africa",
+  "CapeVerde" = "Africa",
+  "CentralAfricanRepublic" = "Africa",
+  "CostaRica" = "Latin America and the Caribbean",
+  "Curacao" = "Latin America and the Caribbean",
+  "CzechRepublic" = "Europe",
+  "CotedIvoire" = "Africa",
+  "DemocraticRepublicoftheCongo" = "Africa",
+  "DominicanRepublic" = "Latin America and the Caribbean",
+  "ElSalvador" = "Latin America and the Caribbean",
+  "EquatorialGuinea" = "Africa",
+  "FrenchGuiana" = "Latin America and the Caribbean",
+  "Guadeloupe" = "Latin America and the Caribbean",
+  "GuineaBissau" = "Africa",
+  "HongKong" = "Asia",
+  "Macao" = "Asia",
+  "Martinique" = "Latin America and the Caribbean",
+  "Mayotte" = "Africa",
+  "NewCaledonia" = "Oceania",
+  "NewZealand" = "Oceania",
+  "NorthKorea" = "Asia",
+  "NorthernCyprus" = "Europe",
+  "PapuaNewGuinea" = "Oceania",
+  "PuertoRico" = "Latin America and the Caribbean",
+  "RepublicoftheCongo" = "Africa",
+  "RepublicofCongo" = "Africa",
+  "Reunion" = "Africa",
+  "SaudiArabia" = "MENA",
+  "SierraLeone" = "Africa",
+  "SolomonIslands" = "Oceania",
+  "SouthAfrica" = "Africa",
+  "SouthKorea" = "Asia",
+  "SouthSudan" = "Africa",
+  "SriLanka" = "Asia",
+  "SaoTomeandPrincipe" = "Africa",
+  "TimorLeste" = "Asia",
+  "TrinidadandTobago" = "Latin America and the Caribbean",
+  "UnitedArabEmirates" = "MENA",
+  "UnitedKingdom" = "Europe",
+  "UnitedStates" = "Northern America",
+  "WesternSahara" = "Africa"
+)
+
+# Assigning regions based on the country
+pollution_ucdb2_merged <- pollution_ucdb2_merged %>%
+  mutate(Region = case_when(
+    Country %in% names(country_region_mapping) ~ country_region_mapping[Country],
+    TRUE ~ Region
+  ))
+
+
+summary_details(pollution_ucdb2_merged
+                , "PM2.5_concentration"
+                , "Region"
+                , "MENA"
+)
+
+
+# Plot 
+plot_data <- pollution_ucdb2_merged %>% 
+  group_by(Region) %>%
+  mutate(median_PM2.5_concentration = median(PM2.5_concentration)) %>%
+  ungroup() %>%
+  mutate(Region = factor(Region)) %>%
+  ungroup()
+
+plot_data <- plot_data %>% 
+  mutate(Region = reorder(Region, -median_PM2.5_concentration)) %>% 
+  group_by(Region) %>%
+  mutate(n = n()) %>%
+  ungroup() %>% 
+  filter(!is.na(median_PM2.5_concentration))
+
+plot3 <- ggplot(plot_data,
+                aes(x = PM2.5_concentration, y = Region, fill = Region == "MENA")) +
+  geom_boxplot(outlier.size = 2, outlier.alpha = 0.6) +
+  labs(
+    x = expression(PM[2.5]~concentration),
+    y = NULL,
+    title = expression(Concentration~of~PM[2.5]~by~region)
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16, face = "bold"),
+    axis.text = element_text(size = 12, face = "bold"),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.y = element_blank(),
+    legend.position = "none"
+  ) +
+  scale_x_continuous(limits = c(0, 150)) +
+  scale_fill_manual(values = c("TRUE" = "red"))  +
+  labs(y = NULL) +
+  annotate("text", x = Inf, y = plot_data$Region
+           , label = paste0(" (n = ", plot_data$n, ")"), 
+           hjust = 1, vjust = 0.5, size = 4)
+
+ggsave(filename = here("Figures", "PM2.5_concentration_FUA.png")
+       , plot = plot3, width = 12, height = 10, dpi = 800)
+
+plot3
           dplyr::select(,"Country"
                               ,"Year"
                               ,"Location"
