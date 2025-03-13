@@ -62,11 +62,66 @@ mena_countries <- c(
   "Palestine"
 )
 
+# OE DATA
 oe_mena <- data %>% dplyr::filter(Country %in% mena_countries)
 
 oe_mena %>% filter(Country!=Location) %>%
   distinct(.$Location) %>% 
   View()  #51 (not considering national level)
+
+# NTL DATA
+require(haven)
+ntl_data <- read_dta(here("Data","NTL","OE_OECD_FUA_ntl_2019_matched.dta"))  
+
+ntl_data_merge <- ntl_data %>% 
+                  # dplyr::filter(mena == 1) %>% 
+                  dplyr::select(efua_name, mask_2019_fua, mena) %>% 
+                  rename(Location = efua_name)
+
+# Correlate OE GDP and NTL
+require(ggpmisc)
+oe_ntl_data <-  data %>% dplyr::filter(Country!=Location, Year == 2019) %>% 
+                          dplyr::select(Country, Location, GDPTOTUSC, POPTOTT, GDPTOTPPPC) %>%
+                          left_join(ntl_data_merge, by = "Location") %>% 
+                          dplyr::filter(!is.na(mask_2019_fua)) %>% 
+                          mutate(GDPTOTUSC = as.numeric(GDPTOTUSC)) 
+
+filtered_data <- oe_ntl_data %>% dplyr::filter(mena == 1)
+
+model <- lm(GDPTOTUSC ~ mask_2019_fua, data = filtered_data)
+
+filtered_data_corr <- filtered_data %>%
+                 dplyr::filter(mena == 1) %>% 
+                 mutate(residual = GDPTOTUSC - predict(model))
+
+top_3_above <- filtered_data_corr %>%
+  arrange(desc(residual)) %>%
+  slice(1:3)
+
+(corr_data <- ggplot(filtered_data_corr, aes(x = mask_2019_fua, y = GDPTOTUSC)) +
+             geom_point() +
+             geom_smooth(method = "lm", se = FALSE) +
+             geom_text(data = top_3_above, aes(label = Location) 
+                       , color = "red"
+                       , vjust = -1) +  # Max value label
+             ggpmisc::stat_poly_eq(aes(label = paste(..eq.label..
+                                                     , ..rr.label..
+                                                     , sep = "~~~")), 
+                            formula = y ~ x, 
+                            parse = TRUE) +
+             labs(title = "OE GDP and NTL correlation",
+                  x = "OE GDP",
+                  y = "NTL") +
+             theme_minimal()
+)
+
+(correlation <- cor(corr_data$data$GDPTOTUSC, corr_data$data$mask_2019_fua, use = "complete.obs"))
+
+filter_corr_data <- filtered_data_corr %>% 
+                    filter(!Location %in% top_3_above$Location)
+
+(correlation <- cor(filter_corr_data$GDPTOTUSC, filter_corr_data$mask_2019_fua, use = "complete.obs"))
+
 
 # mismatches <- oe_mena %>%
 #   filter(Country != matched_country) %>%
@@ -203,6 +258,20 @@ data_frontier <- data %>%
          POPTOTT = as.numeric(POPTOTT),  
          GDP = as.numeric(GDPTOTPPPC)) %>%
   filter(Year %in% c(2019)) %>%
+  filter(Location != Country) %>% 
+  dplyr::filter(!is.na(GDP)) %>%
+  mutate(Region = case_when(
+    Country %in% mena_countries ~ "MENA",
+    TRUE ~ "Not_MENA"
+  ))
+
+# Using NTL data, run first line 56 to 85, obtaining oe_ntl_data
+
+data_frontier <- oe_ntl_data %>%
+  mutate(GDPTOTUSC = as.numeric(GDPTOTUSC)  * 1e3, # Convert to thousands
+         POPTOTT = as.numeric(POPTOTT),  
+         GDP = as.numeric(mask_2019_fua)) %>% # Using NTL data!!!!!!!
+  # filter(Year %in% c(2019)) %>%
   filter(Location != Country) %>% 
   dplyr::filter(!is.na(GDP)) %>%
   mutate(Region = case_when(
@@ -378,7 +447,8 @@ avg_frontier_distance_MENA <- mean(results2$frontier_distance2[results2$Region =
   scale_y_continuous(breaks = scales::pretty_breaks(n = 10)) +
   coord_cartesian(clip = "off") +
   labs(x = "Log Population (2019)",
-       y = "Log Total GDP, real, PPP adjusted (2019)",
+       # y = "Log Total GDP, real, PPP adjusted (2019)",
+       y = "Log Total NTL",
        title = paste0("Economic Frontier Analysis: MENA ",
                      "(Avg. Distance: ", round(avg_frontier_distance, 1), "%)"),
        subtitle = "Frontier MENA cities and high performing MENA cities with their distance to frontier line") +
@@ -399,8 +469,8 @@ avg_frontier_distance_MENA <- mean(results2$frontier_distance2[results2$Region =
     values = c(
       "Non-MENA frontier" = "#117a65",
       "MENA frontier" = "#abebc6",
-      "MENA below frontier" = "#a04000",
-      "Other MENA" = "#FFA07A",
+      "MENA above frontier" = "#FFA07A",
+      "Other MENA" = "#a04000",
       "Non-MENA non-frontier" = "grey90"
     ),
     name = NULL
@@ -408,6 +478,9 @@ avg_frontier_distance_MENA <- mean(results2$frontier_distance2[results2$Region =
 )
 
 ggsave(filename = here::here("Output","MENA", "Frontier-Cities_2019_MENA.png"),
+       plot = frontier_plot, width = 12, height = 10, dpi = 800)
+
+ggsave(filename = here::here("Output","MENA", "Frontier-Cities_2019_MENA_NTL.png"),
        plot = frontier_plot, width = 12, height = 10, dpi = 800)
 
 

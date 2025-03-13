@@ -565,13 +565,21 @@ mena_countries <- c(
   "Yemen",
   "Palestine"
 )
-      
+
+# OE DATA
 oe_data %>% dplyr::filter(Country %in% mena_countries)
     
 mena_list <- oe_data %>% filter(Country!=Location) %>%
   distinct(.$Location)
 
 oe_data <- oe_data %>% group_by(Location, Year) 
+
+# NTL DATA
+require(haven)
+ntl_data <- read_dta(here("Data","NTL","ntl_data.rds"))
+
+
+
 
 # search_variable(data_rankings_traffic
 #                 , mena_list
@@ -758,7 +766,7 @@ plot_index <- function(index) {
 
 walk(index, plot_index)
 
-# Quality of life
+# Quality of life ----
 -----------------
 cost_living <- readRDS(here("Data", "NUMBEO","data_rankings_past.rds"))
 names(cost_living)
@@ -771,6 +779,9 @@ names(cost_living)
 #   #, distance_col = "distance"
 # )
 # )
+
+oe_data <- data
+names(oe_data)
 
 (matching_cities_cost_living <- left_join(
   cost_living, oe_data %>% filter(Country != Location),
