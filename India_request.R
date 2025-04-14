@@ -84,41 +84,45 @@ size_categories <- list(
                      "Pekan Baru", "Ulsan")
 )
 
-oe_comparators <- oe_india 
 
 oe_comparators <-
-  add_group_category(oe_comparators, 
+  add_group_category(oe_india, 
                      categories = mission_categories,
                      var_col = "Location",
                      new_col = "mission_categories",
-                     warn_unmapped = TRUE) 
-oe_comparators <-
-  add_group_category(oe_comparators, 
+                     warn_unmapped = TRUE) %>% 
+                     dplyr::filter(mission_categories != " ")
+  
+oe_comparators2 <-
+  add_group_category(oe_india, 
                      categories = size_categories,
                      var_col = "Location",
                      new_col = "size_categories",
-                     warn_unmapped = TRUE)
+                     warn_unmapped = TRUE) %>% 
+                     dplyr::filter(size_categories != " ")
 
 # General comparison line charts -----
 require(rlang)
 
 create_visualizations_line <- function(data, year_range = c(2005, 2021), 
-                                  main_var = "Population", 
-                                  unit = "Thousands",
-                                  output_dir = here::here("Output", "India_02")) {
+                                       main_var = "Population", 
+                                       unit = "Thousands",
+                                       categories = "mission_categories",
+                                       output_dir = here::here("Output", "India_02")) {
   
   # Data preparation
   data_filtered <- data %>%
     filter(between(Year, year_range[1], year_range[2])) %>%
     mutate(Year = as.numeric(Year)) %>%
-    dplyr::select(Location, Year, mission_categories, all_of(main_var)) %>%
-    rename(Value = !!sym(main_var)) %>%
+    dplyr::select(Location, Year, all_of(categories), all_of(main_var)) %>%
+    rename(Value = !!sym(main_var),
+           categories = !!sym(categories)) %>%  # Rename the column to "categories" for consistent processing
     mutate(Value = as.numeric(Value))  # Ensure numeric conversion
   
   # Function to create plots for each category
   create_category_plot <- function(cat_data) {
     
-    category <- unique(cat_data$mission_categories)
+    category <- unique(cat_data$categories)
     
     start_year <- min(cat_data$Year)
     end_year <- max(cat_data$Year)
@@ -134,17 +138,29 @@ create_visualizations_line <- function(data, year_range = c(2005, 2021),
     y_axis_label <- paste0(main_var, " (", unit, ")")
     
     
+    # Get data for the last point of each location to add location labels
+    last_points <- cat_data %>%
+      group_by(Location) %>%
+      filter(Year == max(Year)) %>%
+      ungroup()
+    
     p <- ggplot(cat_data, aes(x = Year, y = Value, color = Location, group = Location)) +
       geom_line(size = 1.2, alpha = 0.8) +
       geom_point(size = 3) +
-      # geom_text(data = cat_data_labeled %>% filter(show_label),
-      #           aes(label = ValueLabel), 
-      #           vjust = -0.8, size = 3.5) +
       geom_text_repel(data = cat_data_labeled %>% filter(show_label),
                       aes(label = ValueLabel), 
                       size = 3.5, 
                       box.padding = 0.5, 
                       point.padding = 0.5) +
+      # Add location labels at the end of each line
+      geom_text_repel(data = last_points,
+                      aes(label = Location),
+                      nudge_x = 1.2,
+                      hjust = 0,
+                      direction = "y",
+                      segment.color = NA,
+                      size = 4,
+                      fontface = "bold") +
       scale_color_manual(values = wes_palette("Zissou1", n = length(unique(cat_data$Location)), 
                                               type = "continuous")) +
       labs(
@@ -155,7 +171,7 @@ create_visualizations_line <- function(data, year_range = c(2005, 2021),
       theme_minimal() +
       theme(
         plot.title = element_text(size = 16, face = "bold"),
-        axis.text.x = element_text(angle = 45, hjust = 1, size = 12, face = "bold"),
+        axis.text.x = element_text(angle = 45, hjust = 0.8, size = 12, face = "bold"),
         legend.position = "bottom",
         legend.title = element_blank()
       ) +
@@ -167,8 +183,8 @@ create_visualizations_line <- function(data, year_range = c(2005, 2021),
     
     ggsave(filename = file.path(output_dir, filename),
            plot = p,
-           width = 12,
-           height = 8,
+           width = 18,
+           height = 10,
            dpi = 600)
     
     return(p)
@@ -176,186 +192,150 @@ create_visualizations_line <- function(data, year_range = c(2005, 2021),
   
   # Generate plots for each category
   plots <- data_filtered %>%
-    group_by(mission_categories) %>%
+    group_by(categories) %>%
     group_map(~ create_category_plot(.x), .keep = TRUE)
   
   return(plots)
 }
-
 ## Population trend
 create_visualizations_line(oe_comparators, 
                          year_range = c(2005, 2021),
                          main_var = "Population",
                          unit = "Thousands",
+                         categories = "mission_categories",
                          output_dir = here::here("Output", "India_02"))
 
+create_visualizations_line(oe_comparators2, 
+                           year_range = c(2005, 2021),
+                           main_var = "Population",
+                           unit = "Thousands",
+                           categories = "size_categories",
+                           output_dir = here::here("Output", "India_02"))
 ## GDP trend
 create_visualizations_line(oe_comparators, 
                            year_range = c(2005, 2021),
                            main_var = "GDP",
                            unit = "Millions",
+                           categories = "mission_categories",
                            output_dir = here::here("Output", "India_02"))
 
+create_visualizations_line(oe_comparators2, 
+                           year_range = c(2005, 2021),
+                           main_var = "GDP",
+                           unit = "Millions",
+                           categories = "size_categories",
+                           output_dir = here::here("Output", "India_02"))
 ## Employment trend
 create_visualizations_line(oe_comparators, 
                            year_range = c(2005, 2021),
                            main_var = "Employment",
                            unit = "Thousands",
+                           categories = "mission_categories",
                            output_dir = here::here("Output", "India_02"))
 
+create_visualizations_line(oe_comparators2, 
+                           year_range = c(2005, 2021),
+                           main_var = "Employment",
+                           unit = "Thousands",
+                           categories = "size_categories",
+                           output_dir = here::here("Output", "India_02"))
 ## GDP per worker trend
 create_visualizations_line(oe_comparators, 
                            year_range = c(2005, 2021),
                            main_var = "GDP_per_worker",
                            unit = "Thousands",
+                           categories = "mission_categories",
                            output_dir = here::here("Output", "India_02"))
 
+create_visualizations_line(oe_comparators2, 
+                           year_range = c(2005, 2021),
+                           main_var = "GDP_per_worker",
+                           unit = "Thousands",
+                           categories = "size_categories",
+                           output_dir = here::here("Output", "India_02"))
 
-
-# General comparison bar charts -----
-
+# General comparison bar charts ----- Merci, ChatGPT
 create_visualizations_bar <- function(data, year_range = c(2001, 2019), 
+                                      main_var = "GVA", 
+                                      categories = "mission_categories", 
                                       output_dir = here::here("Output", "India_02")) {
   
-  # Data preparation
-  pie_data <- data %>%
+  # Data Preparation
+  bar_data <- data %>%
+    filter(between(Year, year_range[1], year_range[2])) %>%
     pivot_longer(
-      cols = ends_with("_Pct"), 
+      cols = ends_with(paste0("_", main_var, "_Pct")), 
       names_to = "Sector", 
       values_to = "Percentage"
     ) %>%
-    filter(between(Year, year_range[1], year_range[2])) %>%
     mutate(
-      Sector = str_remove(Sector, "_EMP_Pct"|"_GDP_Pct"|"_GVApw_Pct"),
+      Sector = str_remove(Sector, paste0("_", main_var, "_Pct")),
       Sector = str_replace_all(Sector, "_", " "),
       Year = as.numeric(Year)
-    )
+    ) %>% 
+    rename(categories = !!sym(categories))
   
-  # Function to create single location plot
-  create_location_plot <- function(loc_data) {
+  # Function to create individual plots
+  create_category_plot <- function(cat_data) {
     
-    # Get location name
-    location <- unique(loc_data$Location)
-    
-    # Get years for labels
-    start_year <- min(loc_data$Year)
-    end_year <- max(loc_data$Year)
+    category_name <- unique(cat_data$categories)
+    start_year <- min(cat_data$Year)
+    end_year <- max(cat_data$Year)
     
     # Prepare label data with correct positioning
-    label_data <- loc_data %>%
+    label_data <- cat_data %>%
       group_by(Year) %>%
       arrange(Year, desc(Sector)) %>%  # Important: consistent ordering
       mutate(
         # Calculate cumulative percentages for area positions
         ymax = cumsum(Percentage),
         ymin = lag(ymax, default = 0),
-        pos = (ymax + ymin) / 2,  # Center position for labels
+        pos =  pmin(ymin + (ymax - ymin) * 0.5, ymax - 0.02),  # Center position for labels
         perc = scales::percent(Percentage, accuracy = 0.1)
       ) %>%
       ungroup()
     
-    # Create plot based on the number of years
-    if (length(unique(loc_data$Year)) == 1) {
-      # Single year: create a stacked bar chart
-      p <- ggplot(loc_data, aes(x = factor(Year), y = Percentage, fill = Sector)) +
-        geom_bar(stat = "identity", alpha = 0.8) +
-        scale_fill_manual(
-          values = c(
-            wes_palette("Zissou1", n = length(unique(loc_data$Sector)), 
-                        type = "continuous"), 
-            "#D3D3D3"
-          )
-        ) +
-        labs(
-          title = paste("Employment by Sector in", location, 
-                        paste0("(", start_year, ")")),
-          x = NULL,
-          y = "Percentage",
-          fill = "Sector"
-        ) +
-        theme_minimal() +
-        theme(
-          plot.title = element_text(size = 16, face = "bold"),
-          axis.text.x = element_text(size = 12, face = "bold"),
-          legend.position = "bottom",
-          legend.title = element_blank()
-        ) +
-        scale_y_continuous(labels = scales::percent_format()) +
-        geom_text( data = label_data,
-                   aes(x = factor(Year), y = pos, label = perc, group = Sector),
-                   size = 5,
-                   fontface = "bold"
-        ) 
-      
-    } else {
-      # Multiple years: create an area chart
-      p <- ggplot(loc_data, aes(x = Year, y = Percentage, fill = Sector)) +
-        geom_area(position = "fill", alpha = 0.8) +
-        scale_fill_manual(
-          values = c(
-            wes_palette("Zissou1", n = length(unique(loc_data$Sector)), 
-                        type = "continuous"), 
-            "#D3D3D3"
-          )
-        ) +
-        labs(
-          title = paste("Employment by Sector in", location, 
-                        paste0("(", start_year, "-", end_year, ")")),
-          x = NULL,
-          y = "Percentage",
-          fill = "Sector"
-        ) +
-        theme_minimal() +
-        theme(
-          plot.title = element_text(size = 16, face = "bold"),
-          axis.text.x = element_text(angle = 45, hjust = 1, size = 12, 
-                                     face = "bold"),
-          legend.position = "bottom",
-          legend.title = element_blank()
-        ) +
-        scale_y_continuous(labels = scales::percent_format()) +
-        scale_x_continuous(breaks = unique(loc_data$Year)) +
-        # Add labels and connecting lines with corrected positioning
-        geom_text(
-          data = label_data %>% 
-            filter(Year == start_year | Year == end_year),
-          aes(x = Year, y = pos, label = perc, group = Sector,
-              hjust = ifelse(Year == start_year, 1.1, -0.1)),  # Adjusted hjust
-          size = 5,
-          fontface = "bold"
-        ) +
-        geom_line(
-          data = label_data %>% 
-            filter(Year == start_year | Year == end_year),
-          aes(x = Year, y = pos, group = Sector),
-          linetype = "dotted", 
-          color = "gray50"
-        )
-    }
+    # Generate stacked bar plot with locations grouped in each category
+    p <- ggplot(cat_data, aes(x = Location, y = Percentage, fill = Sector)) +
+      geom_bar(stat = "identity", position = "stack", alpha = 0.8) +
+      scale_fill_manual(
+        values = wes_palette("Zissou1", n = length(unique(cat_data$Sector)), type = "continuous")
+      ) +
+      labs(
+        title = paste(main_var, "Sector Contribution in", category_name, "(", start_year, "-", end_year, ")"),
+        x = "City",
+        y = "Percentage",
+        fill = "Sector"
+      ) +
+      theme_minimal() +
+      theme(
+        plot.title = element_text(size = 16, face = "bold"),
+        axis.text.x = element_text(angle = 45, hjust = 1, size = 12, face = "bold"),
+        legend.position = "bottom",
+        legend.title = element_blank()
+      ) +
+      scale_y_continuous(labels = scales::percent_format()) +
+      geom_text(data = label_data, 
+                aes(x = Location
+                    # , y = pmin(pos, 1)
+                    , label = perc),
+                position = position_stack(vjust = 0.5), 
+                size = 5, fontface = "bold", color = "white", check_overlap = FALSE)
     
-    # Save plot
-    filename <- paste0(
-      ,"_Sector_", 
-      start_year, if (end_year != start_year) paste0("-", end_year), "_",
-      gsub(" ", "_", location), 
-      ".png"
-    )
-    
-    ggsave(
-      filename = file.path(output_dir, filename),
-      plot = p,
-      width = 12,
-      height = 8,
-      dpi = 600
-    )
+    filename <- paste0(main_var, "_Sector_Bar_", start_year, "-", end_year, "_", gsub(" ", "_", category_name), ".png")
+    ggsave(file.path(output_dir, filename)
+           , plot = p
+           , width = 18
+           , height = 10
+           , dpi = 600)
     
     return(p)
   }
   
-  # Create plots for each location
-  plots <- pie_data %>%
-    group_by(Location) %>%
-    group_map(~ create_location_plot(.x), .keep = TRUE)
+  # Generate plots for each category efficiently
+  plots <- bar_data %>%
+    group_by(categories) %>%
+    group_map(~ create_category_plot(.x), .keep = TRUE)
   
   return(plots)
 }
@@ -379,13 +359,36 @@ oe_india_gva <- oe_india %>%
   ) # Decimal format
 
 
-create_visualizations_bar(oe_india_gva 
-                          # , year_range =  c(2001, 2019)
+oe_comparators_gva <-
+  add_group_category(oe_india_gva, 
+                     categories = mission_categories,
+                     var_col = "Location",
+                     new_col = "mission_categories",
+                     warn_unmapped = TRUE) %>% 
+  dplyr::filter(mission_categories != " ")
+
+oe_comparators2_gva <-
+  add_group_category(oe_india_gva, 
+                     categories = size_categories,
+                     var_col = "Location",
+                     new_col = "size_categories",
+                     warn_unmapped = TRUE) %>% 
+  dplyr::filter(size_categories != " ")
+
+
+create_visualizations_bar(oe_comparators_gva 
                           , year_range = c(2019, 2019)
-                          , location = "India"
+                          , main_var = "GVA"
+                          , categories = "mission_categories"
                           , output_dir = here::here("Output", "India_02")
 )
 
+create_visualizations_bar(oe_comparators2_gva 
+                          , year_range = c(2019, 2019)
+                          , main_var = "GVA"
+                          , categories = "size_categories"
+                          , output_dir = here::here("Output", "India_02")
+)
 
 ## Emplpoyment structure 2019
 oe_india_emp <- oe_india %>%
@@ -403,22 +406,123 @@ oe_india_emp <- oe_india %>%
          Agriculture_EMP_Pct = Agriculture_Emp / Total_Emp,
          Transport_Information_Communic_Services_EMP_Pct = Transport_Information_Communic_Services_Emp / Total_Emp)
 
-create_visualizations_bar(oe_india_emp 
-                          # , year_range =  c(2001, 2019)
+
+oe_comparators_emp <-
+  add_group_category(oe_india_emp, 
+                     categories = mission_categories,
+                     var_col = "Location",
+                     new_col = "mission_categories",
+                     warn_unmapped = TRUE) %>% 
+  dplyr::filter(mission_categories != " ")
+
+oe_comparators2_emp <-
+  add_group_category(oe_india_emp, 
+                     categories = size_categories,
+                     var_col = "Location",
+                     new_col = "size_categories",
+                     warn_unmapped = TRUE) %>% 
+  dplyr::filter(size_categories != " ")
+
+create_visualizations_bar(oe_comparators_emp 
                           , year_range = c(2019, 2019)
-                          , 
+                          , main_var = "EMP"
+                          , categories = "mission_categories"
                           , output_dir = here::here("Output", "India_02")
 )
 
+create_visualizations_bar(oe_comparators2_emp 
+                          , year_range = c(2019, 2019)
+                          , main_var = "EMP"
+                          , categories = "size_categories"
+                          , output_dir = here::here("Output", "India_02")
+)
 
 ## GVA per worker structure 2019
+create_visualizations_bar_doge <- function(data, year_range = c(2001, 2019), 
+                                      main_var = "GVA", 
+                                      categories = "mission_categories", 
+                                      output_dir = here::here("Output", "India_02")) {
+  
+  # Data Preparation
+  bar_data <- data %>%
+    filter(between(Year, year_range[1], year_range[2])) %>%
+    pivot_longer(
+      cols = ends_with(paste0("_", main_var, "_Pct")), 
+      names_to = "Sector", 
+      values_to = "Percentage"
+    ) %>%
+    mutate(
+      Sector = str_remove(Sector, paste0("_", main_var, "_Pct")),
+      Sector = str_replace_all(Sector, "_", " "),
+      Year = as.numeric(Year)
+    ) %>% 
+    rename(categories = !!sym(categories))
+  
+  # Function to create individual plots
+  create_category_plot <- function(cat_data) {
+    
+    category_name <- unique(cat_data$categories)
+    start_year <- min(cat_data$Year)
+    end_year <- max(cat_data$Year)
+    
+    # Generate stacked bar plot with locations grouped in each category
+    p <- ggplot(cat_data, aes(x = Location, y = Percentage, fill = Sector)) +
+      # geom_bar(stat = "identity", position = "stack", alpha = 0.8) +
+      geom_bar(stat = "identity", position = "dodge", alpha = 0.8) +
+      scale_fill_manual(
+        values = wes_palette("Zissou1", n = length(unique(cat_data$Sector)), type = "continuous")
+      ) +
+      labs(
+        title = paste(main_var, "Sector Contribution in", category_name, "(", start_year, "-", end_year, ")"),
+        x = "City",
+        y = "Nomaimal Value (Thousands)",
+        fill = "Sector"
+      ) +
+      theme_minimal() +
+      theme(
+        plot.title = element_text(size = 16, face = "bold"),
+        axis.text.x = element_text(angle = 45, hjust = 1, size = 12, face = "bold"),
+        legend.position = "bottom",
+        legend.title = element_blank()
+      ) +
+      scale_y_continuous(labels = scales::number_format()) +
+      # geom_text(
+      #   aes(x = Location, y = Percentage, label = scales::comma(round(Percentage / 1000))),
+      #   vjust = -0.5,   # Moves labels slightly higher above the bars
+      #   hjust = 1,      # Adjusts horizontal placement for better alignment
+      #   size = 5,
+      #   fontface = "bold",
+      #   color = "black",
+      #   angle = 45      # Rotates labels 45 degrees
+      # )    
+      geom_text(aes(x = Location, y = Percentage, label = Percentage), vjust = -0.5)
+    
+    filename <- paste0(main_var, "_Sector_Bar_", start_year, "-", end_year, "_", gsub(" ", "_", category_name), ".png")
+    ggsave(file.path(output_dir, filename)
+           , plot = p
+           , width = 18
+           , height = 10
+           , dpi = 600)
+    
+    return(p)
+  }
+  
+  # Generate plots for each category efficiently
+  plots <- bar_data %>%
+    group_by(categories) %>%
+    group_map(~ create_category_plot(.x), .keep = TRUE)
+  
+  return(plots)
+}
+
 oe_india_gvapw <- oe_india %>%
   mutate(GVATOTPPPN = as.numeric(GVATOTPPPN),
+         GVAAPPPN  = as.numeric(GVAAPPPN),
          GVAGIR_UPPPN = as.numeric(GVAGIR_UPPPN),
          GVAK_NPPPN = as.numeric(GVAK_NPPPN),
          GVAB_FPPPN = as.numeric(GVAB_FPPPN),
          GVAO_QPPPN = as.numeric(GVAO_QPPPN),
-         GVAHJPPPN = as.numeric(GVAHJPPPN),
+         GVAHJPPPN = as.numeric(GVAHJPPPN),  #Mominal value
   ) %>%
   mutate(Total_Emp = as.numeric(EMPTOTT),
          Public_Services_Emp = as.numeric(EMPO_Q),
@@ -427,20 +531,50 @@ oe_india_gvapw <- oe_india %>%
          Consumer_Services_Emp = as.numeric(EMPGIR_U),
          Agriculture_Emp = as.numeric(EMPA),
          Transport_Information_Communic_Services_Emp = as.numeric(EMPHJ)) %>%
-  mutate(Agriculture_GVApw_Pct = GVAAPPPC / Agriculture_Emp
-         , Consumer_services_GVApw_Pct = GVAGIR_UPPPC / Consumer_Services_Emp
-         , Financial_business_services_GVApw_Pct = GVAK_NPPPC / Financial_Business_Services_Emp
-         , Industry_GVApw_Pct = GVAB_FPPPC / Industry_Emp          
-         , Public_services_GVApw_Pct =  GVAO_QPPPC / Public_Services_Emp 
-         , Transport_Information_Communic_Services_GVApw_Pct =  GVAHJPPPC / Transport_Information_Communic_Services_Emp
+  mutate(Agriculture_GVApw_Pct = GVAAPPPN / Agriculture_Emp
+         , Consumer_services_GVApw_Pct = GVAGIR_UPPPN / Consumer_Services_Emp
+         , Financial_business_services_GVApw_Pct = GVAK_NPPPN / Financial_Business_Services_Emp
+         , Industry_GVApw_Pct = GVAB_FPPPN / Industry_Emp          
+         , Public_services_GVApw_Pct =  GVAO_QPPPN / Public_Services_Emp 
+         , Transport_Information_Communic_Services_GVApw_Pct =  GVAHJPPPN / Transport_Information_Communic_Services_Emp
   ) # Decimal format
 
 
 
+oe_comparators_gvapw <-
+  add_group_category(oe_india_gvapw, 
+                     categories = mission_categories,
+                     var_col = "Location",
+                     new_col = "mission_categories",
+                     warn_unmapped = TRUE) %>% 
+  dplyr::filter(mission_categories != " ")
+
+oe_comparators2_gvapw <-
+  add_group_category(oe_india_gvapw, 
+                     categories = size_categories,
+                     var_col = "Location",
+                     new_col = "size_categories",
+                     warn_unmapped = TRUE) %>% 
+  dplyr::filter(size_categories != " ")
+
+create_visualizations_bar_doge(oe_comparators_gvapw 
+                          , year_range = c(2019, 2019)
+                          , main_var = "GVApw"
+                          , categories = "mission_categories"
+                          , output_dir = here::here("Output", "India_02")
+)
+
+create_visualizations_bar_doge(oe_comparators2_gvapw 
+                          , year_range = c(2019, 2019)
+                          , main_var = "GVApw"
+                          , categories = "size_categories"
+                          , output_dir = here::here("Output", "India_02")
+)
+
 # General comparison individual cities, I See 16 cities NOT 17 -----
 
 # Create a plot for each location
-create_gva_visualizations <- function(data, year_range = c(2001, 2019), 
+create_area_visualizations <- function(data, year_range = c(2001, 2019), 
                                       main_var = "GVA",
                                       output_dir = here::here("Output", "India_02")) {
   
@@ -592,7 +726,7 @@ create_gva_visualizations <- function(data, year_range = c(2001, 2019),
 
 unique(oe_india_gva$Location)
 
-create_gva_visualizations(oe_india_gva 
+create_area_visualizations(oe_india_gva 
                           , main_var = "GVA"
                           , year_range = c(2005, 2021)
                           , output_dir = here::here("Output", "India_02")
@@ -602,7 +736,7 @@ create_gva_visualizations(oe_india_gva
 ## Area chart of change of employment structure over time (2005-2021)
 unique(oe_india_emp$Location)
 
-create_gva_visualizations(oe_india_emp 
+create_area_visualizations(oe_india_emp 
                           , main_var = "EMP"
                           , year_range = c(2005, 2021)
                           , output_dir = here::here("Output", "India_02")
