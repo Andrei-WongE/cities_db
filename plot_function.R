@@ -198,7 +198,7 @@ create_population_plot <- function(data,
          y = y_label)
   
   if (save_plot) {
-    ggsave(filename = here("Output", "MENA", filename), 
+    ggsave(filename = here("Output", "India_02", filename), 
            plot = p, 
            width = width, 
            height = height,

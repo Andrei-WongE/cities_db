@@ -574,13 +574,6 @@ mena_list <- oe_data %>% filter(Country!=Location) %>%
 
 oe_data <- oe_data %>% group_by(Location, Year) 
 
-# NTL DATA
-require(haven)
-ntl_data <- read_dta(here("Data","NTL","ntl_data.rds"))
-
-
-
-
 # search_variable(data_rankings_traffic
 #                 , mena_list
 #                 , partial_match = TRUE

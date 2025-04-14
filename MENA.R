@@ -9,6 +9,7 @@ if(!exists("data")) stop("Data not found")
 
 source("Plot_functions_V1.R")
 source("plot_function.R")
+source("Utils.R")
 
 
 # Create output folder
@@ -447,8 +448,8 @@ avg_frontier_distance_MENA <- mean(results2$frontier_distance2[results2$Region =
   scale_y_continuous(breaks = scales::pretty_breaks(n = 10)) +
   coord_cartesian(clip = "off") +
   labs(x = "Log Population (2019)",
-       # y = "Log Total GDP, real, PPP adjusted (2019)",
-       y = "Log Total NTL",
+       y = "Log Total GDP, real, PPP adjusted (2019)",
+       # y = "Log Total NTL",
        title = paste0("Economic Frontier Analysis: MENA ",
                      "(Avg. Distance: ", round(avg_frontier_distance, 1), "%)"),
        subtitle = "Frontier MENA cities and high performing MENA cities with their distance to frontier line") +
@@ -480,9 +481,11 @@ avg_frontier_distance_MENA <- mean(results2$frontier_distance2[results2$Region =
 ggsave(filename = here::here("Output","MENA", "Frontier-Cities_2019_MENA.png"),
        plot = frontier_plot, width = 12, height = 10, dpi = 800)
 
-ggsave(filename = here::here("Output","MENA", "Frontier-Cities_2019_MENA_NTL.png"),
-       plot = frontier_plot, width = 12, height = 10, dpi = 800)
-
+# ggsave(filename = here::here("Output","MENA", "Frontier-Cities_2019_MENA_NTL.png"),
+#        plot = frontier_plot, width = 12, height = 10, dpi = 800)
+# 
+# ggsave(filename = here::here("Output","MENA", "Frontier-Cities_2019_MENA_NTL-GDP.png"),
+#        plot = frontier_plot, width = 12, height = 10, dpi = 800)
 
 # Other comparisons groups with frontier cities
 # Define country groups properly
