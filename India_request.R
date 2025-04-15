@@ -57,10 +57,10 @@ oe_india <- data %>%
   filter(Location != Country) %>% 
   dplyr::filter(Year %in% c(2005:2021)) 
   
-countries <- c("India", "Vietnam", "Malaysia", "China", "Oman", "Japan", "Indonesia", "South Korea")
+countries <- c("India", "Vietnam", "Malaysia", "Taiwan", "Oman", "Japan", "Indonesia", "South Korea")
 cities <- c("Jaipur", "Kota", "Jodhpur", "Lucknow", "Varanasi", "Kanpur",
             "Bhubaneswar", "Pune", "Surabaya", "Ho Chi Minh City", "Kuala Lumpur",
-            "Tianjin", "Muscat", "Okayama MMA", "Pekan Baru", "Ulsan")
+            "Taichung", "Muscat", "Okayama MMA", "Pekan Baru", "Ulsan")
 
 oe_india <- oe_india %>% 
   filter(Country %in% countries & Location %in% cities)
@@ -76,11 +76,11 @@ mission_categories <- list(
 )
 
 size_categories <- list(
-  Larger_cities = c("Jaipur", "Bhubaneswar", "Varanasi", "Pune", 
+  Larger_cities = c("Jaipur", "Pune", 
                     "Lucknow", "Kanpur", "Surabaya", "Ho Chi Minh City", 
-                    "Kuala Lumpur", "Tianjin"),
+                    "Kuala Lumpur", "Taichung"),
   
-  Smaller_cities = c("Kota", "Jodhpur", "Muscat", "Okayama MMA", 
+  Smaller_cities = c("Kota", "Jodhpur", "Muscat", "Bhubaneswar", "Varanasi", "Okayama MMA", 
                      "Pekan Baru", "Ulsan")
 )
 
@@ -167,13 +167,20 @@ create_visualizations_line <- function(data, year_range = c(2005, 2021),
         title = gsub("_", " ", title_text),
         x = "Year",
         y = gsub("_", " ", y_axis_label),
-        color = "City") +
+        color = "City",
+        caption = paste0("Source: Oxford City Database, 2022")) +
       theme_minimal() +
       theme(
         plot.title = element_text(size = 16, face = "bold"),
         axis.text.x = element_text(angle = 45, hjust = 0.8, size = 12, face = "bold"),
         legend.position = "bottom",
-        legend.title = element_blank()
+        legend.title = element_blank(),
+        plot.caption = element_text(
+          size = 8,
+          hjust = 0,
+          margin = margin(t = 20),
+          color = "gray30"
+        )
       ) +
       scale_y_continuous(labels = comma_format()) +
       scale_x_continuous(breaks = seq(year_range[1], year_range[2], by = 2))
@@ -295,6 +302,12 @@ create_visualizations_bar <- function(data, year_range = c(2001, 2019),
       ) %>%
       ungroup()
     
+    title_text <- if (main_var == "EMP") {
+      paste("Employment Sectorial Contribution in",  gsub("_", " ", category_name), paste0("(", start_year, "-", end_year, ")"))
+    } else {
+      paste(main_var, "Sectorial Contribution in",  gsub("_", " ", category_name), paste0("(", start_year, "-", end_year, ")"))
+    }
+    
     # Generate stacked bar plot with locations grouped in each category
     p <- ggplot(cat_data, aes(x = Location, y = Percentage, fill = Sector)) +
       geom_bar(stat = "identity", position = "stack", alpha = 0.8) +
@@ -302,17 +315,22 @@ create_visualizations_bar <- function(data, year_range = c(2001, 2019),
         values = wes_palette("Zissou1", n = length(unique(cat_data$Sector)), type = "continuous")
       ) +
       labs(
-        title = paste(main_var, "Sector Contribution in", category_name, "(", start_year, "-", end_year, ")"),
+        title = title_text,
         x = "City",
         y = "Percentage",
-        fill = "Sector"
-      ) +
+        fill = "Sector",
+        caption = paste0("Source: Oxford City Database, 2022")) +
       theme_minimal() +
       theme(
         plot.title = element_text(size = 16, face = "bold"),
         axis.text.x = element_text(angle = 45, hjust = 1, size = 12, face = "bold"),
         legend.position = "bottom",
-        legend.title = element_blank()
+        legend.title = element_blank(),
+        plot.caption = element_text(
+          size = 8,
+          hjust = 0,
+          margin = margin(t = 20),
+          color = "gray30")
       ) +
       scale_y_continuous(labels = scales::percent_format()) +
       geom_text(data = label_data, 
@@ -390,7 +408,7 @@ create_visualizations_bar(oe_comparators2_gva
                           , output_dir = here::here("Output", "India_02")
 )
 
-## Emplpoyment structure 2019
+## Employment structure 2019
 oe_india_emp <- oe_india %>%
   mutate(Total_Emp = as.numeric(EMPTOTT),
          Public_Services_Emp = as.numeric(EMPO_Q),
@@ -438,10 +456,10 @@ create_visualizations_bar(oe_comparators2_emp
 )
 
 ## GVA per worker structure 2019
-create_visualizations_bar_doge <- function(data, year_range = c(2001, 2019), 
-                                      main_var = "GVA", 
-                                      categories = "mission_categories", 
-                                      output_dir = here::here("Output", "India_02")) {
+create_visualizations_bar_dodge <- function(data, year_range = c(2001, 2019), 
+                                            main_var = "GVA", 
+                                            categories = "mission_categories", 
+                                            output_dir = here::here("Output", "India_02")) {
   
   # Data Preparation
   bar_data <- data %>%
@@ -468,34 +486,37 @@ create_visualizations_bar_doge <- function(data, year_range = c(2001, 2019),
     # Generate stacked bar plot with locations grouped in each category
     p <- ggplot(cat_data, aes(x = Location, y = Percentage, fill = Sector)) +
       # geom_bar(stat = "identity", position = "stack", alpha = 0.8) +
-      geom_bar(stat = "identity", position = "dodge", alpha = 0.8) +
+      geom_bar(stat = "identity", position = position_dodge(width = 0.9), alpha = 0.8) +
       scale_fill_manual(
         values = wes_palette("Zissou1", n = length(unique(cat_data$Sector)), type = "continuous")
       ) +
       labs(
-        title = paste(main_var, "Sector Contribution in", category_name, "(", start_year, "-", end_year, ")"),
-        x = "City",
-        y = "Nomaimal Value (Thousands)",
-        fill = "Sector"
+        title = paste("GVA per Worker Sectorial Contribution in", gsub("_", " ",category_name), "(", start_year, "-", end_year, ")"),
+        x = NULL,
+        y = "Nominal Value (Thousands)",
+        fill = "Sector",
+        caption = paste0("Source: Oxford City Database, 2022") 
       ) +
       theme_minimal() +
       theme(
         plot.title = element_text(size = 16, face = "bold"),
         axis.text.x = element_text(angle = 45, hjust = 1, size = 12, face = "bold"),
         legend.position = "bottom",
-        legend.title = element_blank()
+        legend.title = element_blank(),
+        plot.caption = element_text(
+          size = 8,
+          hjust = 0,
+          margin = margin(t = 20),
+          color = "gray30")
       ) +
       scale_y_continuous(labels = scales::number_format()) +
-      # geom_text(
-      #   aes(x = Location, y = Percentage, label = scales::comma(round(Percentage / 1000))),
-      #   vjust = -0.5,   # Moves labels slightly higher above the bars
-      #   hjust = 1,      # Adjusts horizontal placement for better alignment
-      #   size = 5,
-      #   fontface = "bold",
-      #   color = "black",
-      #   angle = 45      # Rotates labels 45 degrees
-      # )    
-      geom_text(aes(x = Location, y = Percentage, label = Percentage), vjust = -0.5)
+      geom_text(
+        aes(x = Location, y = Percentage, label = scales::comma(round(Percentage))),
+        position = position_dodge(width = 0.9), 
+        vjust = -0.5,   
+        size = 3.5,
+        fontface = "bold"
+      )
     
     filename <- paste0(main_var, "_Sector_Bar_", start_year, "-", end_year, "_", gsub(" ", "_", category_name), ".png")
     ggsave(file.path(output_dir, filename)
@@ -557,14 +578,14 @@ oe_comparators2_gvapw <-
                      warn_unmapped = TRUE) %>% 
   dplyr::filter(size_categories != " ")
 
-create_visualizations_bar_doge(oe_comparators_gvapw 
+create_visualizations_bar_dodge(oe_comparators_gvapw 
                           , year_range = c(2019, 2019)
                           , main_var = "GVApw"
                           , categories = "mission_categories"
                           , output_dir = here::here("Output", "India_02")
 )
 
-create_visualizations_bar_doge(oe_comparators2_gvapw 
+create_visualizations_bar_dodge(oe_comparators2_gvapw 
                           , year_range = c(2019, 2019)
                           , main_var = "GVApw"
                           , categories = "size_categories"
@@ -574,7 +595,7 @@ create_visualizations_bar_doge(oe_comparators2_gvapw
 # General comparison individual cities, I See 16 cities NOT 17 -----
 
 # Create a plot for each location
-create_area_visualizations <- function(data, year_range = c(2001, 2019), 
+create_area_visualizations <- function(data, year_range = c(2005, 2019), 
                                       main_var = "GVA",
                                       output_dir = here::here("Output", "India_02")) {
   
@@ -615,6 +636,12 @@ create_area_visualizations <- function(data, year_range = c(2001, 2019),
       ) %>%
       ungroup()
     
+    title_text <- if (main_var == "EMP") {
+      paste("Employment Sectorial Contribution in",  gsub("_", " ", location), paste0("(", start_year, "-", end_year, ")"))
+    } else {
+      paste(main_var, "Sectorial Contribution in",  gsub("_", " ", location), paste0("(", start_year, "-", end_year, ")"))
+    }
+    
     # Create plot based on the number of years
     if (length(unique(loc_data$Year)) == 1) {
       # Single year: create a stacked bar chart
@@ -628,18 +655,23 @@ create_area_visualizations <- function(data, year_range = c(2001, 2019),
           )
         ) +
         labs(
-          title = paste(main_var, "Contribution by Sector in", location, 
-                        paste0("(", start_year, ")")),
+          title = title_text,
           x = NULL,
           y = "Percentage",
-          fill = "Sector"
+          fill = "Sector",
+          caption = paste0("Source: Oxford City Database, 2022") 
         ) +
         theme_minimal() +
         theme(
           plot.title = element_text(size = 16, face = "bold"),
           axis.text.x = element_text(size = 12, face = "bold"),
           legend.position = "bottom",
-          legend.title = element_blank()
+          legend.title = element_blank(),
+          plot.caption = element_text(
+            size = 8,
+            hjust = 0,
+            margin = margin(t = 20),
+            color = "gray30")
         ) +
         scale_y_continuous(labels = scales::percent_format(), limit = c(0,1)) +
         geom_text( data = label_data,
@@ -661,11 +693,11 @@ create_area_visualizations <- function(data, year_range = c(2001, 2019),
           )
         ) +
         labs(
-          title = paste(main_var, "Contribution by Sector in", location, 
-                        paste0("(", start_year, "-", end_year, ")")),
+          title = title_text,
           x = NULL,
           y = "Percentage",
-          fill = "Sector"
+          fill = "Sector",
+          caption = paste0("Source: Oxford City Database, 2022") 
         ) +
         theme_minimal() +
         theme(
@@ -673,7 +705,12 @@ create_area_visualizations <- function(data, year_range = c(2001, 2019),
           axis.text.x = element_text(angle = 45, hjust = 1, size = 12, 
                                      face = "bold"),
           legend.position = "bottom",
-          legend.title = element_blank()
+          legend.title = element_blank(),
+          plot.caption = element_text(
+            size = 8,
+            hjust = 0,
+            margin = margin(t = 20),
+            color = "gray30")
         ) +
         scale_y_continuous(labels = scales::percent_format(), limit = c(0,1)) +
         scale_x_continuous(breaks = unique(loc_data$Year)) +
