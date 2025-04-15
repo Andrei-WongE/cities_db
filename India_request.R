@@ -4,7 +4,7 @@
 require(here)
 require(stringdist)
 require(stringr)
-
+require(ggrepel)
 
 source(here("Master_variables.R"))
 
@@ -858,6 +858,15 @@ if (!exists("pollution_ucdb")) {
       ggplot(aes(x = log_gdp, y = .data[[index]], color = Selected_cities)) +
       geom_point() +
       geom_smooth(method = "lm", se = FALSE) +  # Optional: Add a linear regression line
+      geom_text_repel(
+        data = . %>% filter(Selected_cities == "Selected cities"),
+        aes(label = Location),
+        size = 3,
+        box.padding = 0.5,
+        point.padding = 0.1,
+        force = 3,
+        segment.color = "grey50"
+      ) +
       theme_minimal() +
       theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
       labs(x = "Log GDP", y = gsub("_", "", index)
@@ -878,7 +887,9 @@ if (!exists("pollution_ucdb")) {
 # Merge datasets
 pollution_data <- pollution_ucdb %>%
   left_join(data_rankings_pollution_past %>% filter(Year == 2019), by = c("Country" = "country", "Location" = "city_name")) %>% 
-  filter(!is.na(pollution_index) |!is.na(exp_pollution_index))
+  filter(!is.na(pollution_index) |!is.na(exp_pollution_index)) %>% 
+  mutate(Selected_cities = ifelse(Country %in% countries & Location %in% cities, "Selected cities", "Other"))
 
 index <- c("pollution_index", "exp_pollution_index")
+filtered_data <-  pollution_data 
 walk(index, plot_index)
