@@ -14,7 +14,7 @@ if(all(sapply(c("oe_mena", "ucdb_mena_cities", "UCDB_all"), exists)))
 
    } else {
   
-print("Some of all objects does not exist")
+print("Some objects does not exist")
  }
 
 # OE indicators----
@@ -127,7 +127,7 @@ mena_countries <- c(
 
 id <- UCDB_all$GHS_UCDB_THEME_GHSL_GLOBE_R2024A$ID_UC_G0
 density <- UCDB_all$GHS_UCDB_THEME_GHSL_GLOBE_R2024A$GH_XST_D30_2020
-plausibility <- UCDB_all$GHS_UCDB_THEME_GENERAL_CHARACTERISTICS_GLOBE_R2024A
+plausibility <- UCDB_all$GHS_UCDB_THEME_GENERAL_CHARACTERISTICS_GLOBE_R2024A$GC_PLS_SCR_2025
 geom <- UCDB_all$GHS_UCDB_THEME_GHSL_GLOBE_R2024A$geom
 density_ucdb <- data.frame(id = as.numeric(id), Density = as.numeric(density)
                            , Plausibility  = as.factor(plausibility)
@@ -163,11 +163,12 @@ pollution_ucdb <- density_ucdb %>%
                   dplyr::filter(Plausibility == "High") %>%
                   mutate(log_density = log(Density)) %>% 
                   mutate(log_concentration = log(PM2.5_concentration)) %>%
-                  mutate(log_gdp = log(GDP)) %>%
-                  mutate(Region = case_when(
-                    Country %in% mena_countries ~ "MENA",
-                    TRUE ~ "Not_MENA"
-                  ))
+                  mutate(log_gdp = log(GDP)) 
+# %>%
+#                   mutate(Region = case_when(
+#                     Country %in% mena_countries ~ "MENA",
+#                     TRUE ~ "Not_MENA"
+#                   ))
 
 summary(pollution_ucdb$Density)
 # Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 

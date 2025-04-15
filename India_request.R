@@ -2,6 +2,9 @@
 
 # Load packages and data, see Main file
 require(here)
+require(stringdist)
+require(stringr)
+
 
 source(here("Master_variables.R"))
 
@@ -781,3 +784,101 @@ create_area_visualizations(oe_india_emp
 
 
 
+
+# NUMBEO data ----
+
+data_rankings_traffic_past <- readRDS(here("Data","NUMBEO","data_rankings_traffic_past.rds"))
+names(data_rankings_traffic_past)
+unique(sort(as.factor(data_rankings_traffic_past$Year)))
+
+data_rankings_traffic_past <- data_rankings_traffic_past %>% 
+  mutate(Year = case_when( Year == "2012-Q1" ~ "2012"
+                           , Year == "2013-Q1" ~ "2013"
+                           , TRUE ~ Year )
+  ) %>% 
+  dplyr::filter(!str_detect(Year, "-mid")) %>% 
+  group_by(city_name, Year) 
+
+
+
+temp <- data_rankings_pollution_past %>% 
+  filter(country %in% countries & city_name %in% cities) 
+# 4 cities
+# 10 cities
+
+data_rankings_pollution_past <- readRDS(here("Data","NUMBEO","data_rankings_pollution_past.rds"))
+names(data_rankings_pollution_past)
+unique(sort(as.factor(data_rankings_pollution_past$Year)))
+
+data_rankings_pollution_past <- data_rankings_pollution_past %>% 
+  mutate(Year = case_when( Year == "2012-Q1" ~ "2012"
+                           , Year == "2013-Q1" ~ "2013"
+                           , TRUE ~ Year )
+  ) %>% 
+  dplyr::filter(!str_detect(Year, "-mid")) %>% 
+  group_by(city_name, Year) 
+
+
+# Find if the city is present using Fuzzy matching 
+temo <-  data_rankings_pollution_past %>% 
+  filter(
+    # # For each country
+    # sapply(str_to_lower(str_trim(country)), function(x) {
+    #   any(stringdist(x, str_to_lower(str_trim(countries)), method = "jw") / 
+    #         pmax(nchar(x), nchar(str_to_lower(str_trim(countries)))) < 0.2)
+    # }) &
+      # For each city
+      sapply(str_to_lower(str_trim(city_name)), function(x) {
+        any(stringdist(x, str_to_lower(str_trim(cities)), method = "jw") / 
+              pmax(nchar(x), nchar(str_to_lower(str_trim(cities)))) < 0.1)
+      })
+  ) %>%
+  distinct(city_name, Year) %>%
+  count(city_name, sort = TRUE) 
+
+
+
+filtered_data <- pollution_ucdb %>% 
+  mutate(Selected_cities = ifelse(Country %in% countries & Location %in% cities, "Selected cities", "Other"))
+
+
+# From Congestion_indic.R obtain pollution_ucdb
+if (!exists("pollution_ucdb")) {
+  message("Data pollution_ucdb not found. Skipping code.")
+} else {
+  
+  index <- c("PM2.5", "PM2.5_concentration")
+  
+  filtered_data <- pollution_ucdb %>% 
+    mutate(Selected_cities = ifelse(Country %in% countries & Location %in% cities, "Selected cities", "Other"))
+  
+  plot_index <- function(index) {
+    plot <- filtered_data %>% 
+      filter(.data[[index]] > 0) %>%  
+      ggplot(aes(x = log_gdp, y = .data[[index]], color = Selected_cities)) +
+      geom_point() +
+      geom_smooth(method = "lm", se = FALSE) +  # Optional: Add a linear regression line
+      theme_minimal() +
+      theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+      labs(x = "Log GDP", y = gsub("_", "", index)
+           # , title = paste(index, "vs Log Density (2020)")
+      ) +
+      scale_color_manual(values = c("Selected cities" = "red", "Other" = "blue"))
+    
+    print(plot)
+    
+    ggsave(filename = here("Output", "India_02", paste0(index, "_vs_Log_GDP_2020.png"))
+           , plot = plot, width = 12, height = 10, dpi = 800)
+  }
+  
+  walk(index, plot_index)
+  
+}
+
+# Merge datasets
+pollution_data <- pollution_ucdb %>%
+  left_join(data_rankings_pollution_past %>% filter(Year == 2019), by = c("Country" = "country", "Location" = "city_name")) %>% 
+  filter(!is.na(pollution_index) |!is.na(exp_pollution_index))
+
+index <- c("pollution_index", "exp_pollution_index")
+walk(index, plot_index)
