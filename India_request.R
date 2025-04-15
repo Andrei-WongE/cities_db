@@ -861,11 +861,13 @@ if (!exists("pollution_ucdb")) {
       geom_text_repel(
         data = . %>% filter(Selected_cities == "Selected cities"),
         aes(label = Location),
-        size = 3,
+        size = 5,
         box.padding = 0.5,
         point.padding = 0.1,
         force = 3,
-        segment.color = "grey50"
+        segment.color = "grey50",
+        fontface = "bold",
+        nudge_x = 1
       ) +
       theme_minimal() +
       theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
