@@ -864,7 +864,7 @@ data_rankings_pollution_past <- data_rankings_pollution_past %>%
 
 
 # Find if the city is present using Fuzzy matching 
-temo <-  data_rankings_pollution_past %>% 
+temp <-  data_rankings_pollution_past %>% 
   filter(
     # # For each country
     # sapply(str_to_lower(str_trim(country)), function(x) {
@@ -873,13 +873,12 @@ temo <-  data_rankings_pollution_past %>%
     # }) &
       # For each city
       sapply(str_to_lower(str_trim(city_name)), function(x) {
-        any(stringdist(x, str_to_lower(str_trim(cities)), method = "jw") / 
-              pmax(nchar(x), nchar(str_to_lower(str_trim(cities)))) < 0.1)
+        any(stringdist(x, str_to_lower(str_trim(all_cities)), method = "jw") / 
+              pmax(nchar(x), nchar(str_to_lower(str_trim(all_cities)))) < 0.1)
       })
   ) %>%
   distinct(city_name, Year) %>%
   count(city_name, sort = TRUE) 
-
 
 
 filtered_data <- pollution_ucdb %>% 
@@ -1100,28 +1099,103 @@ create_visualizations_bar(oe_comparators2
 ## Individual cities
 all_cities <- unique(unlist(c(rajasthan_comparators, jaipur_comparators)))
 
-## Area chart of change of GVA structure over time. (2005-2021)
-
 data_mining_cities <- data %>%
   dplyr::filter(Location %in% all_cities)
 
 unique(data_mining_cities$Location)
 
+## Area chart of change of GVA structure over time. (2005-2021)
 create_area_visualizations(data_mining_cities  
                            , main_var = "GVA"
                            , year_range = c(2005, 2021)
                            , output_dir = here::here("Output", output_dir))
 
 ## Area chart of change of employment structure over time (2005-2021)
-unique(oe_india_emp$Location)
-
 create_area_visualizations(data_mining_cities  
                            , main_var = "EMP"
                            , year_range = c(2005, 2021)
                            , output_dir = here::here("Output", output_dir))
 
+##  Pollution data, need pollution_ucdb! -----
+filtered_data <- pollution_ucdb %>% 
+  mutate(Selected_cities = ifelse(Location %in% all_cities, "Selected cities", "Other")) %>% 
+  mutate(India = ifelse(Country == "India", "India", "Other"))
 
+table(filtered_data$Selected_cities)
+# Other Selected cities 
+# 10833              19 
 
+table(filtered_data$India)
+# India Other 
+# 1805  9047 
 
+index <- c("PM2.5", "PM2.5_concentration")
 
+plot_index <- function(index) {
+  plot <- filtered_data %>%
+    filter(.data[[index]] > 0) %>%
+    ggplot() +
+    
+    # All other cities (Grey)
+    geom_point(data = . %>% filter(!(India == "India" | Selected_cities == "Selected cities")),
+               aes(x = log_gdp, y = .data[[index]]), color = "lightgrey", size = 3) +
+    
+    # Indian cities (Red, but not selected cities)
+    geom_point(data = . %>% filter(India == "India" & Selected_cities != "Selected cities"),
+               aes(x = log_gdp, y = .data[[index]]), color = "red", size = 4, alpha = 0.3) +
+    
+    # Selected cities (Always orange, priority over other classifications)
+    geom_point(data = . %>% filter(Selected_cities == "Selected cities"),
+               aes(x = log_gdp, y = .data[[index]]), fill = "#FF8C00" , color = "black", size = 5,  alpha = 0.8, shape = 22) +
+    
+    # LM trend line for all cities (Blue)
+    geom_smooth(
+      aes(x = log_gdp, y = .data[[index]]),
+      method = "lm", se = FALSE, color = "blue"
+    ) +
+    
+    # LM trend line for Indian cities only (Red)
+    geom_smooth(
+      data = . %>% filter(India == "India"),
+      aes(x = log_gdp, y = .data[[index]]),
+      method = "lm", se = FALSE, color = "red"
+    ) +
+    
+    # Labels only for Selected cities (Orange)
+    geom_text_repel(
+      data = . %>% filter(Selected_cities == "Selected cities"),
+      aes(x = log_gdp, y = .data[[index]], label = Location),
+      size = 5,
+      box.padding = 1,
+      point.padding = 0.3,
+      force = 5,
+      segment.color = "grey50",
+      fontface = "bold",
+      color = "#FF8C00",
+      nudge_x = 2
+    ) +
+    
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+    labs(x = "Log GDP", y = gsub("_", "", index)) 
+  
+  print(plot)
+  
+  ggsave(
+    filename = here("Output", output_dir, paste0(index, "_vs_Log_GDP_2020.png")),
+    plot = plot, width = 12, height = 10, dpi = 800
+  )
+}
 
+walk(index, plot_index)
+
+# Merge datasets
+pollution_data <- pollution_ucdb %>%
+  left_join(data_rankings_pollution_past %>% filter(Year == 2019), by = c("Country" = "country", "Location" = "city_name")) %>% 
+  filter(!is.na(pollution_index) |!is.na(exp_pollution_index)) %>% 
+  mutate(Selected_cities = ifelse(Location %in% all_cities, "Selected cities", "Other"))%>% 
+  mutate(India = ifelse(Country == "India", "India", "Other"))
+
+index <- c("pollution_index", "exp_pollution_index")
+filtered_data <-  pollution_data 
+walk(index, plot_index)
