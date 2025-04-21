@@ -136,11 +136,35 @@ density_ucdb <- data.frame(id = as.numeric(id), Density = as.numeric(density)
 id <- UCDB_all$GHS_UCDB_THEME_EMISSIONS_GLOBE_R2024A$ID_UC_G0
 pm25 <- UCDB_all$GHS_UCDB_THEME_EMISSIONS_GLOBE_R2024A$EM_PM2_TOT_2020
 pm25_con <- UCDB_all$GHS_UCDB_THEME_EMISSIONS_GLOBE_R2024A$EM_PM2_CON_2020
+pm25_agric <- UCDB_all$GHS_UCDB_THEME_EMISSIONS_GLOBE_R2024A$EM_PM2_AGR_2020
+pm25_energ <- UCDB_all$GHS_UCDB_THEME_EMISSIONS_GLOBE_R2024A$EM_PM2_ENE_2020
+pm25_indus <- UCDB_all$GHS_UCDB_THEME_EMISSIONS_GLOBE_R2024A$EM_PM2_IND_2020
+pm25_resid <- UCDB_all$GHS_UCDB_THEME_EMISSIONS_GLOBE_R2024A$EM_PM2_RES_2020
+pm25_transp <- UCDB_all$GHS_UCDB_THEME_EMISSIONS_GLOBE_R2024A$EM_PM2_TRA_2020
+pm25_waste <- UCDB_all$GHS_UCDB_THEME_EMISSIONS_GLOBE_R2024A$EM_PM2_WAS_2020
+pm25_total <- UCDB_all$GHS_UCDB_THEME_EMISSIONS_GLOBE_R2024A$EM_PM2_TOT_2020
+co2_pc    <- UCDB_all$GHS_UCDB_THEME_EMISSIONS_GLOBE_R2024A$EM_CO2_PEC_2020
+ghg_pc    <- UCDB_all$GHS_UCDB_THEME_EMISSIONS_GLOBE_R2024A$EM_GHG_PEC_2020
+ghg_pc    <- UCDB_all$GHS_UCDB_THEME_EMISSIONS_GLOBE_R2024A$EM_GHG_PEC_2020
+nox_pc    <- UCDB_all$GHS_UCDB_THEME_EMISSIONS_GLOBE_R2024A$EM_NOX_PEC_2020
+pm25_dead <- UCDB_all$GHS_UCDB_THEME_EMISSIONS_GLOBE_R2024A$EM_PM2_MOR_2020 
 geom <- UCDB_all$GHS_UCDB_THEME_EMISSIONS_GLOBE_R2024A$geom
-pm25_ucdb <- data.frame(id = as.numeric(id)
-                        , PM2.5 = as.numeric(pm25)
-                        , PM2.5_concentration = as.numeric(pm25_con)
-                        , geom = geom
+pm25_ucdb <- data.frame(id = as.numeric(id),
+                        PM2.5 = as.numeric(pm25),
+                        PM2.5_concentration = as.numeric(pm25_con),
+                        PM2.5_agriculture = as.numeric(pm25_agric),
+                        PM2.5_energy = as.numeric(pm25_energ),
+                        PM2.5_industry = as.numeric(pm25_indus),
+                        PM2.5_residential = as.numeric(pm25_resid),
+                        PM2.5_transportation = as.numeric(pm25_transp),
+                        PM2.5_waste = as.numeric(pm25_waste),
+                        PM2.5_total = as.numeric(pm25_total),
+                        CO2_per_capita = as.numeric(co2_pc),
+                        GHG_per_capita = as.numeric(ghg_pc),
+                        NOx_per_capita = as.numeric(nox_pc),
+                        PM2.5_mortality = as.numeric(pm25_dead),
+   
+                                             geom = geom
                         )
 
 geo_ucdb <- UCDB_all$GHS_UCDB_THEME_GENERAL_CHARACTERISTICS_GLOBE_R2024A %>% 
@@ -151,15 +175,40 @@ geo_ucdb <- UCDB_all$GHS_UCDB_THEME_GENERAL_CHARACTERISTICS_GLOBE_R2024A %>%
               Regions = GC_DEV_USR_2025
             ) 
 
+id <- UCDB_all$GHS_UCDB_THEME_INFRASTRUCTURES_GLOBE_R2024A$ID_UC_G0
+cisindex_total <- UCDB_all$GHS_UCDB_THEME_INFRASTRUCTURES_GLOBE_R2024A$IN_CIS_ALL_2020
+cisindex_energ <- UCDB_all$GHS_UCDB_THEME_INFRASTRUCTURES_GLOBE_R2024A$IN_CIS_ENE_2020
+cisindex_transp <- UCDB_all$GHS_UCDB_THEME_INFRASTRUCTURES_GLOBE_R2024A$IN_CIS_TRA_2020
+cisindex_water <- UCDB_all$GHS_UCDB_THEME_INFRASTRUCTURES_GLOBE_R2024A$IN_CIS_WAT_2020
+cisindex_waste <- UCDB_all$GHS_UCDB_THEME_INFRASTRUCTURES_GLOBE_R2024A$IN_CIS_WAS_2020
+cisindex_telecom <- UCDB_all$GHS_UCDB_THEME_INFRASTRUCTURES_GLOBE_R2024A$IN_CIS_TEL_2020
+cisindex_health <- UCDB_all$GHS_UCDB_THEME_INFRASTRUCTURES_GLOBE_R2024A$IN_CIS_HEA_2020
+cisindex_edu <- UCDB_all$GHS_UCDB_THEME_INFRASTRUCTURES_GLOBE_R2024A$IN_CIS_EDU_2020
+geom <- UCDB_all$GHS_UCDB_THEME_INFRASTRUCTURES_GLOBE_R2024A$geom
+infra_ucdb <- data.frame(id = as.numeric(id),
+                          CISI_total = as.numeric(cisindex_total),
+                          CISI_energy = as.numeric(cisindex_energ),
+                          CISI_transport = as.numeric(cisindex_transp),
+                          CISI_water = as.numeric(cisindex_water),
+                          CISI_waste = as.numeric(cisindex_waste),
+                          CISI_telecom = as.numeric(cisindex_telecom),
+                          CISI_health = as.numeric(cisindex_health),
+                          CISI_education = as.numeric(cisindex_edu),
+                          geom = geom
+                          )
+
+
 id <- UCDB_all$GHS_UCDB_THEME_SOCIOECONOMIC_GLOBE_R2024A$ID_UC_G0
 gdp <- UCDB_all$GHS_UCDB_THEME_SOCIOECONOMIC_GLOBE_R2024A$SC_SEC_GDP_2020
 geom <- UCDB_all$GHS_UCDB_THEME_SOCIOECONOMIC_GLOBE_R2024A$geom
-econ_ucdb <- data.frame(id = as.numeric(id), GDP = as.numeric(gdp), geom = geom)
+infra_ucdb <- data.frame(id = as.numeric(id), GDP = as.numeric(gdp), geom = geom)
+
 
 pollution_ucdb <- density_ucdb %>%
                   full_join(pm25_ucdb, by = c("id")) %>%
                   full_join(geo_ucdb, by = c("id")) %>% 
                   full_join(econ_ucdb, by = c("id")) %>%
+                  full_join(infra_ucdb, by = c("id")) %>%
                   dplyr::filter(Plausibility == "High") %>%
                   mutate(log_density = log(Density)) %>% 
                   mutate(log_concentration = log(PM2.5_concentration)) %>%
@@ -250,7 +299,7 @@ mena_data <- pollution_ucdb %>%
 # Combine the datasets
 plot_data <- bind_rows(plot_data, mena_data) %>% 
   mutate(Regions2 = reorder(Regions2, median_PM2.5_concentration)) %>% 
-  mutate(Regions2 = reorder(Regions2, -median_PM2.5_concentration)) %>% 
+  # mutate(Regions2 = reorder(Regions2, -median_PM2.5_concentration)) %>% 
   group_by(Regions2) %>%
   mutate(n = n()) %>%
   ungroup()

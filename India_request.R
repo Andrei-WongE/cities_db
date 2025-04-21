@@ -1183,7 +1183,7 @@ plot_index <- function(index) {
   
   ggsave(
     filename = here("Output", output_dir, paste0(index, "_vs_Log_GDP_2020.png")),
-    plot = plot, width = 12, height = 10, dpi = 800
+    plot = plot, width = 12, height = 10, dpi = 400
   )
 }
 
@@ -1199,3 +1199,108 @@ pollution_data <- pollution_ucdb %>%
 index <- c("pollution_index", "exp_pollution_index")
 filtered_data <-  pollution_data 
 walk(index, plot_index)
+
+# Enviromenmtal exposure data, see Congestion_indc.R lines 39 first!!!
+index <- c("CO2_per_capita", "GHG_per_capita", "NOx_per_capita", "PM2.5_mortality")
+filtered_data <-  pollution_data 
+walk(index, plot_index)
+
+# Boxplot by region
+plot_box <- function(indicator) {
+  plot_data <- pollution_data %>%
+    group_by(Regions) %>%
+    mutate(median_value = median(.data[[indicator]], na.rm = TRUE)) %>%
+    ungroup()
+  
+  india_data <- pollution_data %>%
+    filter(India == "India") %>%
+    mutate(Regions2 = "India",
+           median_value = median(.data[[indicator]], na.rm = TRUE),
+           n = n()) %>%
+    ungroup()
+  
+  plot_data <- bind_rows(plot_data, india_data) %>%
+    mutate(Regions2 = ifelse(India == "India", "India", as.character(Regions))) %>%
+    mutate(Regions2 = factor(Regions2, levels = unique(c(Regions2, "India")))) %>% 
+    group_by(Regions2) %>%
+    mutate(Regions2 = reorder(Regions2, median_value)) %>% 
+    mutate(n = n()) %>%
+    ungroup()
+  
+  plot <- ggplot(plot_data, aes(x = .data[[indicator]], y = Regions2, fill = Regions2 == "India")) +
+    geom_boxplot(outlier.size = 2, outlier.alpha = 0.6) +
+    labs(x = indicator, 
+         y = NULL,
+         title = paste("Boxplot of", indicator, "by Region")) +
+    theme_minimal() +
+    theme(plot.title = element_text(size = 16, face = "bold"),
+          axis.text = element_text(size = 12, face = "bold"),
+          panel.grid.minor = element_blank(),
+          panel.grid.major.y = element_blank(),
+          legend.position = "none") +
+    scale_x_continuous(limits = range(plot_data[[indicator]], na.rm = TRUE)) +
+    scale_fill_manual(values = c("TRUE" = "red")) +
+    annotate("text", x = Inf, y = plot_data$Regions2,
+             label = paste0(" (n = ", plot_data$n, ")"),
+             hjust = 1, vjust = 0.5, size = 4)
+  
+  ggsave(filename = here("Output", output_dir, paste0(indicator, "_vs_Log_GDP_2020.png")),
+         plot = plot, width = 12, height = 10, dpi = 400)
+}
+
+# List of PM2.5 indices
+index <- c("PM2.5_total", "PM2.5_agriculture", "PM2.5_energy", "PM2.5_industry",
+           "PM2.5_residential", "PM2.5_transportation", "PM2.5_waste")
+
+# Generate plots for each index
+walk(index, ~plot_box(.x))
+
+# Share by region
+pm25_data <- pollution_data %>%
+  mutate(
+    Regions2 = ifelse(India == "India", "India", as.character(Regions)),
+    Regions2 = factor(Regions2, levels = unique(c(Regions2, "India")))
+    ) %>%
+  group_by(Regions2) %>%
+  summarise(
+    Total_PM2.5_Agriculture = sum(PM2.5_agriculture, na.rm = TRUE),
+    Total_PM2.5_Energy = sum(PM2.5_energy, na.rm = TRUE),
+    Total_PM2.5_Industry = sum(PM2.5_industry, na.rm = TRUE),
+    Total_PM2.5_Residential = sum(PM2.5_residential, na.rm = TRUE),
+    Total_PM2.5_Transportation = sum(PM2.5_transportation, na.rm = TRUE),
+    Total_PM2.5_Waste = sum(PM2.5_waste, na.rm = TRUE),
+    Total_PM2.5 = sum(PM2.5_total, na.rm = TRUE)
+  ) %>%
+  mutate(
+    Agriculture_PM2.5_Pct = Total_PM2.5_Agriculture / Total_PM2.5,
+    Energy_PM2.5_Pct = Total_PM2.5_Energy / Total_PM2.5,
+    Industry_PM2.5_Pct = Total_PM2.5_Industry / Total_PM2.5,
+    Residential_PM2.5_Pct = Total_PM2.5_Residential / Total_PM2.5,
+    Transportation_PM2.5_Pct = Total_PM2.5_Transportation / Total_PM2.5,
+    Waste_PM2.5_Pct = Total_PM2.5_Waste / Total_PM2.5,
+    Year = as.character(2020),
+    Location = Regions2
+  )
+
+create_visualizations_bar(pm25_data 
+                          , year_range = c(2020, 2020)
+                          , main_var = "PM2.5"
+                          , categories = "Regions2"
+                          , output_dir = here::here("Output", output_dir)
+)
+
+# Lack of infrastructure, CIS Index
+summary(pollution_data$CISI_total)
+# Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+# 0.000   0.112   0.176   0.220   0.264   0.880 
+
+index <- c("CISI_total", "CISI_energy", "CISI_transport", "CISI_water",
+  "CISI_waste", "CISI_telecom", "CISI_health", "CISI_education")
+
+# Generate plots for each index
+walk(index, plot_index)
+
+# Generate box plots for each index
+walk(index, ~plot_box(.x))
+
+
