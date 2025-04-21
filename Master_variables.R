@@ -21,6 +21,10 @@
 
 ## Load required packages ----
 
+# install.packages(
+#   "paint", 
+#   repos = c(mm = "https://milesmcbain.r-universe.dev", getOption("repos")))
+
 library("pacman")
 library("here")
 library("groundhog")
@@ -42,9 +46,11 @@ pkgs = c("dplyr", "tidyverse", "janitor", "sf"
 )
 
 groundhog.library(pkgs, groundhog.day
-                  , ignore.deps =  "fs")
+                  # , ignore.deps =  "fs"
+                  )
 
 #maptools removed fron CRAN      
+# install.packages(c("systemfonts", "textshaping"), dependencies = TRUE)
 
 ## Program Set-up ------------
 
