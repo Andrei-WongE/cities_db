@@ -37,6 +37,7 @@ result <- analyze_missing_values(oe_mena_cong, years = c(2001, 2019), multi_year
 
 # UCDB indicators----
 source("Master_variables.R")
+
 source("Utils.R")
 UCDB_all <- read_gpkg_layers(here("Data", "GHS24", "GHS_UCDB_GLOBE_R2024A.gpkg")
                              , selected_layers = NULL
@@ -201,7 +202,7 @@ infra_ucdb <- data.frame(id = as.numeric(id),
 id <- UCDB_all$GHS_UCDB_THEME_SOCIOECONOMIC_GLOBE_R2024A$ID_UC_G0
 gdp <- UCDB_all$GHS_UCDB_THEME_SOCIOECONOMIC_GLOBE_R2024A$SC_SEC_GDP_2020
 geom <- UCDB_all$GHS_UCDB_THEME_SOCIOECONOMIC_GLOBE_R2024A$geom
-infra_ucdb <- data.frame(id = as.numeric(id), GDP = as.numeric(gdp), geom = geom)
+econ_ucdb <- data.frame(id = as.numeric(id), GDP = as.numeric(gdp), geom = geom)
 
 
 pollution_ucdb <- density_ucdb %>%

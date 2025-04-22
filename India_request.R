@@ -6,6 +6,7 @@ require(stringdist)
 require(stringr)
 require(ggrepel)
 require(haven)
+require(rlang)
 
 source(here("Master_variables.R"))
 
@@ -19,140 +20,7 @@ source("plot_function.R")
 dir.create("Output/India_02", showWarnings = FALSE)
 dir.create("Output/India_03", showWarnings = FALSE)
 
-# Plot graphs ----
-
-# Individual cities:
-
-# Area chart of change of employment structure over time (2005-2021)
-# Area chart of change of GVA structure over time like you did before. (2005-2021)
-
-
-# Groups of cities:
-
-# a set of charts on Rajasthan cities: Jaipur, Kota, Jodhpur.
-# a set of charts on Uttar Pradesh cities: Lucknow, Varanasi, Kanpur.
-
-
-# For each of these two it would be great to have  (for all of these use nominal USD GDP)
-
-# Population growth over time (2005-2021) for each group with  line charts.
-# GDP growth over time (2005-2021) for each group with  line charts.
-# Employment growth over time – same thing
-# GDP per worker – change over time line chart (2005-2021)
-# Bar chart comparing structures of GVA in 2019 (stacted bars of all cities like the ones in my e-mail below)
-# Bar charts comparing structures of Employment.
-# A bar chart with GVA per worker in each of the 6 sectors.
-
-
-# Charts, focus and comparators:
-
-# Larger cities:  Jaipur, Bhubaneswar,  Varanasi,  Pune, Lucknow and Kanpur, Surabaya, IND, Ho Chi Min City (VIE), Kuala Lumpur (MAL) and Tianjin (Chn)
-# Smaller cities: Kota and Jodhpur, Muscat (Oman), Okayama (JPN), Pean Baru (IND), Ulsan (KOR)
-
-# Same charts as above for these groups. 
-
-# For each of data set find 4 fastests growing cities
-
-data_jaipur  <- read_dta(here("Data", "India", "Jaipur.dta"))
-data_jodhpur <- read_dta(here("Data", "India", "Jodhpur.dta")) 
-data_kota    <- read_dta(here("Data", "India", "Kota.dta"))
-  
-# For Jaipur find international comparator cities
-  # Port Harcourt (Nigeria)
-  # Santa Cruz (Bolivia) NO, Potosi in dataset
-  # Quetta (pakistan)
-  # Urumqui (china)
-  # Arequipa (Peru)
-  # Tyumen (Russia)
-  
-# 5 enviromental variables, regress on all indian cities, mark selected ones
-  
-# Data wrangling---- 
-data <- data %>% 
-  mutate(Population = as.numeric(POPTOTT)) %>% 
-  mutate(GDP = as.numeric(GDPTOTUSN)) %>% # Using NOMINAL GDP
-  mutate(Employment = as.numeric(EMPTOTT)) %>% 
-  mutate(GDP_per_capita = GDP / Population) %>%
-  mutate(GDP_per_worker = GDP / Employment) %>%
-  mutate(GVATOTPPPN = as.numeric(GVATOTPPPN),
-         GVAAPPPN  = as.numeric(GVAAPPPN),
-         GVAGIR_UPPPN = as.numeric(GVAGIR_UPPPN),
-         GVAK_NPPPN = as.numeric(GVAK_NPPPN),
-         GVAB_FPPPN = as.numeric(GVAB_FPPPN),
-         GVAO_QPPPN = as.numeric(GVAO_QPPPN),
-         GVAHJPPPN = as.numeric(GVAHJPPPN),
-  ) %>%
-  mutate(Agriculture_GVA_Pct = GVAAPPPN / GVATOTPPPN
-         , Consumer_services_GVA_Pct = GVAGIR_UPPPN / GVATOTPPPN
-         , Financial_business_services_GVA_Pct = GVAK_NPPPN / GVATOTPPPN
-         , Industry_GVA_Pct = GVAB_FPPPN / GVATOTPPPN          
-         , Public_services_GVA_Pct =  GVAO_QPPPN / GVATOTPPPN 
-         , Transport_Information_Communic_Services_GVA_Pct =  GVAHJPPPN / GVATOTPPPN
-  ) %>% 
-  mutate(Total_Emp = as.numeric(EMPTOTT),
-         Public_Services_Emp = as.numeric(EMPO_Q),
-         Industry_Emp = as.numeric(EMPB_F),
-         Financial_Business_Services_Emp = as.numeric(EMPK_N),
-         Consumer_Services_Emp = as.numeric(EMPGIR_U),
-         Agriculture_Emp = as.numeric(EMPA),
-         Transport_Information_Communic_Services_Emp = as.numeric(EMPHJ)) %>%
-  mutate(Public_Services_EMP_Pct = Public_Services_Emp / Total_Emp,
-         Industry_EMP_Pct = Industry_Emp / Total_Emp ,
-         Financial_Business_Services_EMP_Pct = Financial_Business_Services_Emp / Total_Emp,
-         Consumer_Services_EMP_Pct = Consumer_Services_Emp / Total_Emp,
-         Agriculture_EMP_Pct = Agriculture_Emp / Total_Emp,
-         Transport_Information_Communic_Services_EMP_Pct = Transport_Information_Communic_Services_Emp / Total_Emp) %>% 
-  filter(Location != Country) %>% 
-  dplyr::filter(Year %in% c(2005:2021)) 
-
-
-  
-countries <- c("India", "Vietnam", "Malaysia", "Taiwan", "Oman", "Japan", "Indonesia", "South Korea")
-cities <- c("Jaipur", "Kota", "Jodhpur", "Lucknow", "Varanasi", "Kanpur",
-            "Bhubaneswar", "Pune", "Surabaya", "Ho Chi Minh City", "Kuala Lumpur",
-            "Taichung", "Muscat", "Okayama MMA", "Pekan Baru", "Ulsan")
-
-oe_india <- data %>% 
-  filter(Country %in% countries & Location %in% cities)
-
-mission_categories <- list(
-  Rajasthan_cities = c("Jaipur", 
-                       "Kota",
-                       "Jodhpur"),
-  
-  Uttar_Pradesh_cities = c("Lucknow",
-                           "Varanasi",
-                           "Kanpur")
-)
-
-size_categories <- list(
-  Larger_cities = c("Jaipur", "Pune", 
-                    "Lucknow", "Kanpur", "Surabaya", "Ho Chi Minh City", 
-                    "Kuala Lumpur", "Taichung"),
-  
-  Smaller_cities = c("Kota", "Jodhpur", "Muscat", "Bhubaneswar", "Varanasi", "Okayama MMA", 
-                     "Pekan Baru", "Ulsan")
-)
-
-
-oe_comparators <-
-  add_group_category(oe_india, 
-                     categories = mission_categories,
-                     var_col = "Location",
-                     new_col = "mission_categories",
-                     warn_unmapped = TRUE) %>% 
-                     dplyr::filter(mission_categories != " ")
-  
-oe_comparators2 <-
-  add_group_category(oe_india, 
-                     categories = size_categories,
-                     var_col = "Location",
-                     new_col = "size_categories",
-                     warn_unmapped = TRUE) %>% 
-                     dplyr::filter(size_categories != " ")
-
-# General comparison line charts -----
-require(rlang)
+# Plot functions ----
 
 create_visualizations_line <- function(data, year_range = c(2005, 2021), 
                                        main_var = "Population", 
@@ -254,64 +122,7 @@ create_visualizations_line <- function(data, year_range = c(2005, 2021),
   
   return(plots)
 }
-## Population trend
-create_visualizations_line(oe_comparators, 
-                         year_range = c(2005, 2021),
-                         main_var = "Population",
-                         unit = "Thousands",
-                         categories = "mission_categories",
-                         output_dir = here::here("Output", output_dir))
 
-create_visualizations_line(oe_comparators2, 
-                           year_range = c(2005, 2021),
-                           main_var = "Population",
-                           unit = "Thousands",
-                           categories = "size_categories",
-                           output_dir = here::here("Output", output_dir))
-## GDP trend
-create_visualizations_line(oe_comparators, 
-                           year_range = c(2005, 2021),
-                           main_var = "GDP",
-                           unit = "Millions",
-                           categories = "mission_categories",
-                           output_dir = here::here("Output", output_dir))
-
-create_visualizations_line(oe_comparators2, 
-                           year_range = c(2005, 2021),
-                           main_var = "GDP",
-                           unit = "Millions",
-                           categories = "size_categories",
-                           output_dir = here::here("Output", output_dir))
-## Employment trend
-create_visualizations_line(oe_comparators, 
-                           year_range = c(2005, 2021),
-                           main_var = "Employment",
-                           unit = "Thousands",
-                           categories = "mission_categories",
-                           output_dir = here::here("Output", output_dir))
-
-create_visualizations_line(oe_comparators2, 
-                           year_range = c(2005, 2021),
-                           main_var = "Employment",
-                           unit = "Thousands",
-                           categories = "size_categories",
-                           output_dir = here::here("Output", output_dir))
-## GDP per worker trend
-create_visualizations_line(oe_comparators, 
-                           year_range = c(2005, 2021),
-                           main_var = "GDP_per_worker",
-                           unit = "Thousands",
-                           categories = "mission_categories",
-                           output_dir = here::here("Output", output_dir))
-
-create_visualizations_line(oe_comparators2, 
-                           year_range = c(2005, 2021),
-                           main_var = "GDP_per_worker",
-                           unit = "Thousands",
-                           categories = "size_categories",
-                           output_dir = here::here("Output", output_dir))
-
-# General comparison bar charts ----- Merci, ChatGPT
 create_visualizations_bar <- function(data, year_range = c(2001, 2019), 
                                       main_var = "GVA", 
                                       categories = "mission_categories", 
@@ -408,104 +219,7 @@ create_visualizations_bar <- function(data, year_range = c(2001, 2019),
   return(plots)
 }
 
-## GVA structure 2019, NOMINAL!!
-oe_india_gva <- oe_india %>%
-  mutate(GVATOTPPPN = as.numeric(GVATOTPPPN),
-         GVAAPPPN  = as.numeric(GVAAPPPN),
-         GVAGIR_UPPPN = as.numeric(GVAGIR_UPPPN),
-         GVAK_NPPPN = as.numeric(GVAK_NPPPN),
-         GVAB_FPPPN = as.numeric(GVAB_FPPPN),
-         GVAO_QPPPN = as.numeric(GVAO_QPPPN),
-         GVAHJPPPN = as.numeric(GVAHJPPPN),
-  ) %>%
-  mutate(Agriculture_GVA_Pct = GVAAPPPN / GVATOTPPPN
-         , Consumer_services_GVA_Pct = GVAGIR_UPPPN / GVATOTPPPN
-         , Financial_business_services_GVA_Pct = GVAK_NPPPN / GVATOTPPPN
-         , Industry_GVA_Pct = GVAB_FPPPN / GVATOTPPPN          
-         , Public_services_GVA_Pct =  GVAO_QPPPN / GVATOTPPPN 
-         , Transport_Information_Communic_Services_GVA_Pct =  GVAHJPPPN / GVATOTPPPN
-  ) # Decimal format
 
-
-oe_comparators_gva <-
-  add_group_category(oe_india_gva, 
-                     categories = mission_categories,
-                     var_col = "Location",
-                     new_col = "mission_categories",
-                     warn_unmapped = TRUE) %>% 
-  dplyr::filter(mission_categories != " ")
-
-oe_comparators2_gva <-
-  add_group_category(oe_india_gva, 
-                     categories = size_categories,
-                     var_col = "Location",
-                     new_col = "size_categories",
-                     warn_unmapped = TRUE) %>% 
-  dplyr::filter(size_categories != " ")
-
-
-create_visualizations_bar(oe_comparators_gva 
-                          , year_range = c(2019, 2019)
-                          , main_var = "GVA"
-                          , categories = "mission_categories"
-                          , output_dir = here::here("Output", output_dir)
-)
-
-create_visualizations_bar(oe_comparators2_gva 
-                          , year_range = c(2019, 2019)
-                          , main_var = "GVA"
-                          , categories = "size_categories"
-                          , output_dir = here::here("Output", output_dir)
-)
-
-## Employment structure 2019
-oe_india_emp <- oe_india %>%
-  mutate(Total_Emp = as.numeric(EMPTOTT),
-         Public_Services_Emp = as.numeric(EMPO_Q),
-         Industry_Emp = as.numeric(EMPB_F),
-         Financial_Business_Services_Emp = as.numeric(EMPK_N),
-         Consumer_Services_Emp = as.numeric(EMPGIR_U),
-         Agriculture_Emp = as.numeric(EMPA),
-         Transport_Information_Communic_Services_Emp = as.numeric(EMPHJ)) %>%
-  mutate(Public_Services_EMP_Pct = Public_Services_Emp / Total_Emp,
-         Industry_EMP_Pct = Industry_Emp / Total_Emp ,
-         Financial_Business_Services_EMP_Pct = Financial_Business_Services_Emp / Total_Emp,
-         Consumer_Services_EMP_Pct = Consumer_Services_Emp / Total_Emp,
-         Agriculture_EMP_Pct = Agriculture_Emp / Total_Emp,
-         Transport_Information_Communic_Services_EMP_Pct = Transport_Information_Communic_Services_Emp / Total_Emp)
-
-
-oe_comparators_emp <-
-  add_group_category(oe_india_emp, 
-                     categories = mission_categories,
-                     var_col = "Location",
-                     new_col = "mission_categories",
-                     warn_unmapped = TRUE) %>% 
-  dplyr::filter(mission_categories != " ")
-
-oe_comparators2_emp <-
-  add_group_category(oe_india_emp, 
-                     categories = size_categories,
-                     var_col = "Location",
-                     new_col = "size_categories",
-                     warn_unmapped = TRUE) %>% 
-  dplyr::filter(size_categories != " ")
-
-create_visualizations_bar(oe_comparators_emp 
-                          , year_range = c(2019, 2019)
-                          , main_var = "EMP"
-                          , categories = "mission_categories"
-                          , output_dir = here::here("Output", output_dir)
-)
-
-create_visualizations_bar(oe_comparators2_emp 
-                          , year_range = c(2019, 2019)
-                          , main_var = "EMP"
-                          , categories = "size_categories"
-                          , output_dir = here::here("Output", output_dir)
-)
-
-## GVA per worker structure 2019
 create_visualizations_bar_dodge <- function(data, year_range = c(2001, 2019), 
                                             main_var = "GVA", 
                                             categories = "mission_categories", 
@@ -586,68 +300,9 @@ create_visualizations_bar_dodge <- function(data, year_range = c(2001, 2019),
   return(plots)
 }
 
-oe_india_gvapw <- oe_india %>%
-  mutate(GVATOTPPPN = as.numeric(GVATOTPPPN),
-         GVAAPPPN  = as.numeric(GVAAPPPN),
-         GVAGIR_UPPPN = as.numeric(GVAGIR_UPPPN),
-         GVAK_NPPPN = as.numeric(GVAK_NPPPN),
-         GVAB_FPPPN = as.numeric(GVAB_FPPPN),
-         GVAO_QPPPN = as.numeric(GVAO_QPPPN),
-         GVAHJPPPN = as.numeric(GVAHJPPPN),  #Mominal value
-  ) %>%
-  mutate(Total_Emp = as.numeric(EMPTOTT),
-         Public_Services_Emp = as.numeric(EMPO_Q),
-         Industry_Emp = as.numeric(EMPB_F),
-         Financial_Business_Services_Emp = as.numeric(EMPK_N),
-         Consumer_Services_Emp = as.numeric(EMPGIR_U),
-         Agriculture_Emp = as.numeric(EMPA),
-         Transport_Information_Communic_Services_Emp = as.numeric(EMPHJ)) %>%
-  mutate(Agriculture_GVApw_Pct = GVAAPPPN / Agriculture_Emp
-         , Consumer_services_GVApw_Pct = GVAGIR_UPPPN / Consumer_Services_Emp
-         , Financial_business_services_GVApw_Pct = GVAK_NPPPN / Financial_Business_Services_Emp
-         , Industry_GVApw_Pct = GVAB_FPPPN / Industry_Emp          
-         , Public_services_GVApw_Pct =  GVAO_QPPPN / Public_Services_Emp 
-         , Transport_Information_Communic_Services_GVApw_Pct =  GVAHJPPPN / Transport_Information_Communic_Services_Emp
-  ) # Decimal format
-
-
-
-oe_comparators_gvapw <-
-  add_group_category(oe_india_gvapw, 
-                     categories = mission_categories,
-                     var_col = "Location",
-                     new_col = "mission_categories",
-                     warn_unmapped = TRUE) %>% 
-  dplyr::filter(mission_categories != " ")
-
-oe_comparators2_gvapw <-
-  add_group_category(oe_india_gvapw, 
-                     categories = size_categories,
-                     var_col = "Location",
-                     new_col = "size_categories",
-                     warn_unmapped = TRUE) %>% 
-  dplyr::filter(size_categories != " ")
-
-create_visualizations_bar_dodge(oe_comparators_gvapw 
-                          , year_range = c(2019, 2019)
-                          , main_var = "GVApw"
-                          , categories = "mission_categories"
-                          , output_dir = here::here("Output", output_dir)
-)
-
-create_visualizations_bar_dodge(oe_comparators2_gvapw 
-                          , year_range = c(2019, 2019)
-                          , main_var = "GVApw"
-                          , categories = "size_categories"
-                          , output_dir = here::here("Output", output_dir)
-)
-
-# General comparison individual cities, I See 16 cities NOT 17 -----
-
-# Create a plot for each location
 create_area_visualizations <- function(data, year_range = c(2005, 2019), 
-                                      main_var = "GVA",
-                                      output_dir = here::here("Output", output_dir)) {
+                                       main_var = "GVA",
+                                       output_dir = here::here("Output", output_dir)) {
   
   
   # Data preparation
@@ -808,6 +463,380 @@ create_area_visualizations <- function(data, year_range = c(2005, 2019),
   
   return(plots)
 }
+
+# Plot graphs ----
+
+# Individual cities:
+
+# Area chart of change of employment structure over time (2005-2021)
+# Area chart of change of GVA structure over time like you did before. (2005-2021)
+
+
+# Groups of cities:
+
+# a set of charts on Rajasthan cities: Jaipur, Kota, Jodhpur.
+# a set of charts on Uttar Pradesh cities: Lucknow, Varanasi, Kanpur.
+
+
+# For each of these two it would be great to have  (for all of these use nominal USD GDP)
+
+# Population growth over time (2005-2021) for each group with  line charts.
+# GDP growth over time (2005-2021) for each group with  line charts.
+# Employment growth over time – same thing
+# GDP per worker – change over time line chart (2005-2021)
+# Bar chart comparing structures of GVA in 2019 (stacted bars of all cities like the ones in my e-mail below)
+# Bar charts comparing structures of Employment.
+# A bar chart with GVA per worker in each of the 6 sectors.
+
+
+# Charts, focus and comparators:
+
+# Larger cities:  Jaipur, Bhubaneswar,  Varanasi,  Pune, Lucknow and Kanpur, Surabaya, IND, Ho Chi Min City (VIE), Kuala Lumpur (MAL) and Tianjin (Chn)
+# Smaller cities: Kota and Jodhpur, Muscat (Oman), Okayama (JPN), Pean Baru (IND), Ulsan (KOR)
+
+# Same charts as above for these groups. 
+
+# For each of data set find 4 fastests growing cities
+
+data_jaipur  <- read_dta(here("Data", "India", "Jaipur.dta"))
+data_jodhpur <- read_dta(here("Data", "India", "Jodhpur.dta")) 
+data_kota    <- read_dta(here("Data", "India", "Kota.dta"))
+  
+# For Jaipur find international comparator cities
+  # Port Harcourt (Nigeria)
+  # Santa Cruz (Bolivia) NO, Potosi in dataset
+  # Quetta (pakistan)
+  # Urumqui (china)
+  # Arequipa (Peru)
+  # Tyumen (Russia)
+  
+# 5 enviromental variables, regress on all indian cities, mark selected ones
+  
+# Data wrangling---- 
+data <- data %>% 
+  mutate(Population = as.numeric(POPTOTT)) %>% 
+  mutate(GDP = as.numeric(GDPTOTUSN)) %>% # Using NOMINAL GDP
+  mutate(Employment = as.numeric(EMPTOTT)) %>% 
+  mutate(GDP_per_capita = GDP / Population) %>%
+  mutate(GDP_per_worker = GDP / Employment) %>%
+  mutate(GVATOTPPPN = as.numeric(GVATOTPPPN),
+         GVAAPPPN  = as.numeric(GVAAPPPN),
+         GVAGIR_UPPPN = as.numeric(GVAGIR_UPPPN),
+         GVAK_NPPPN = as.numeric(GVAK_NPPPN),
+         GVAB_FPPPN = as.numeric(GVAB_FPPPN),
+         GVAO_QPPPN = as.numeric(GVAO_QPPPN),
+         GVAHJPPPN = as.numeric(GVAHJPPPN),
+  ) %>%
+  mutate(Agriculture_GVA_Pct = GVAAPPPN / GVATOTPPPN
+         , Consumer_services_GVA_Pct = GVAGIR_UPPPN / GVATOTPPPN
+         , Financial_business_services_GVA_Pct = GVAK_NPPPN / GVATOTPPPN
+         , Industry_GVA_Pct = GVAB_FPPPN / GVATOTPPPN          
+         , Public_services_GVA_Pct =  GVAO_QPPPN / GVATOTPPPN 
+         , Transport_Information_Communic_Services_GVA_Pct =  GVAHJPPPN / GVATOTPPPN
+  ) %>% 
+  mutate(Total_Emp = as.numeric(EMPTOTT),
+         Public_Services_Emp = as.numeric(EMPO_Q),
+         Industry_Emp = as.numeric(EMPB_F),
+         Financial_Business_Services_Emp = as.numeric(EMPK_N),
+         Consumer_Services_Emp = as.numeric(EMPGIR_U),
+         Agriculture_Emp = as.numeric(EMPA),
+         Transport_Information_Communic_Services_Emp = as.numeric(EMPHJ)
+         ) %>%
+  mutate(Public_Services_EMP_Pct = Public_Services_Emp / Total_Emp,
+         Industry_EMP_Pct = Industry_Emp / Total_Emp ,
+         Financial_Business_Services_EMP_Pct = Financial_Business_Services_Emp / Total_Emp,
+         Consumer_Services_EMP_Pct = Consumer_Services_Emp / Total_Emp,
+         Agriculture_EMP_Pct = Agriculture_Emp / Total_Emp,
+         Transport_Information_Communic_Services_EMP_Pct = Transport_Information_Communic_Services_Emp / Total_Emp
+         ) %>% 
+  mutate(GVATOTPPPN = as.numeric(GVATOTPPPN),
+         GVAAPPPN  = as.numeric(GVAAPPPN),
+         GVAGIR_UPPPN = as.numeric(GVAGIR_UPPPN),
+         GVAK_NPPPN = as.numeric(GVAK_NPPPN),
+         GVAB_FPPPN = as.numeric(GVAB_FPPPN),
+         GVAO_QPPPN = as.numeric(GVAO_QPPPN),
+         GVAHJPPPN = as.numeric(GVAHJPPPN),  #Mominal value
+  ) %>%
+  mutate(Total_Emp = as.numeric(EMPTOTT),
+         Public_Services_Emp = as.numeric(EMPO_Q),
+         Industry_Emp = as.numeric(EMPB_F),
+         Financial_Business_Services_Emp = as.numeric(EMPK_N),
+         Consumer_Services_Emp = as.numeric(EMPGIR_U),
+         Agriculture_Emp = as.numeric(EMPA),
+         Transport_Information_Communic_Services_Emp = as.numeric(EMPHJ)
+         ) %>%
+  mutate(Agriculture_GVApw_Pct = GVAAPPPN / Agriculture_Emp
+         , Consumer_services_GVApw_Pct = GVAGIR_UPPPN / Consumer_Services_Emp
+         , Financial_business_services_GVApw_Pct = GVAK_NPPPN / Financial_Business_Services_Emp
+         , Industry_GVApw_Pct = GVAB_FPPPN / Industry_Emp          
+         , Public_services_GVApw_Pct =  GVAO_QPPPN / Public_Services_Emp 
+         , Transport_Information_Communic_Services_GVApw_Pct =  GVAHJPPPN / Transport_Information_Communic_Services_Emp
+  )  %>% 
+  filter(Location != Country) %>% 
+  dplyr::filter(Year %in% c(2005:2021)) 
+
+
+  
+countries <- c("India", "Vietnam", "Malaysia", "Taiwan", "Oman", "Japan", "Indonesia", "South Korea")
+cities <- c("Jaipur", "Kota", "Jodhpur", "Lucknow", "Varanasi", "Kanpur",
+            "Bhubaneswar", "Pune", "Surabaya", "Ho Chi Minh City", "Kuala Lumpur",
+            "Taichung", "Muscat", "Okayama MMA", "Pekan Baru", "Ulsan")
+
+oe_india <- data %>% 
+  filter(Country %in% countries & Location %in% cities)
+
+mission_categories <- list(
+  Rajasthan_cities = c("Jaipur", 
+                       "Kota",
+                       "Jodhpur"),
+  
+  Uttar_Pradesh_cities = c("Lucknow",
+                           "Varanasi",
+                           "Kanpur")
+)
+
+size_categories <- list(
+  Larger_cities = c("Jaipur", "Pune", 
+                    "Lucknow", "Kanpur", "Surabaya", "Ho Chi Minh City", 
+                    "Kuala Lumpur", "Taichung"),
+  
+  Smaller_cities = c("Kota", "Jodhpur", "Muscat", "Bhubaneswar", "Varanasi", "Okayama MMA", 
+                     "Pekan Baru", "Ulsan")
+)
+
+
+oe_comparators <-
+  add_group_category(oe_india, 
+                     categories = mission_categories,
+                     var_col = "Location",
+                     new_col = "mission_categories",
+                     warn_unmapped = TRUE) %>% 
+                     dplyr::filter(mission_categories != " ")
+  
+oe_comparators2 <-
+  add_group_category(oe_india, 
+                     categories = size_categories,
+                     var_col = "Location",
+                     new_col = "size_categories",
+                     warn_unmapped = TRUE) %>% 
+                     dplyr::filter(size_categories != " ")
+
+# General comparison line charts -----
+## Population trend
+create_visualizations_line(oe_comparators, 
+                         year_range = c(2005, 2021),
+                         main_var = "Population",
+                         unit = "Thousands",
+                         categories = "mission_categories",
+                         output_dir = here::here("Output", output_dir))
+
+create_visualizations_line(oe_comparators2, 
+                           year_range = c(2005, 2021),
+                           main_var = "Population",
+                           unit = "Thousands",
+                           categories = "size_categories",
+                           output_dir = here::here("Output", output_dir))
+## GDP trend
+create_visualizations_line(oe_comparators, 
+                           year_range = c(2005, 2021),
+                           main_var = "GDP",
+                           unit = "Millions",
+                           categories = "mission_categories",
+                           output_dir = here::here("Output", output_dir))
+
+create_visualizations_line(oe_comparators2, 
+                           year_range = c(2005, 2021),
+                           main_var = "GDP",
+                           unit = "Millions",
+                           categories = "size_categories",
+                           output_dir = here::here("Output", output_dir))
+## Employment trend
+create_visualizations_line(oe_comparators, 
+                           year_range = c(2005, 2021),
+                           main_var = "Employment",
+                           unit = "Thousands",
+                           categories = "mission_categories",
+                           output_dir = here::here("Output", output_dir))
+
+create_visualizations_line(oe_comparators2, 
+                           year_range = c(2005, 2021),
+                           main_var = "Employment",
+                           unit = "Thousands",
+                           categories = "size_categories",
+                           output_dir = here::here("Output", output_dir))
+## GDP per worker trend
+create_visualizations_line(oe_comparators, 
+                           year_range = c(2005, 2021),
+                           main_var = "GDP_per_worker",
+                           unit = "Thousands",
+                           categories = "mission_categories",
+                           output_dir = here::here("Output", output_dir))
+
+create_visualizations_line(oe_comparators2, 
+                           year_range = c(2005, 2021),
+                           main_var = "GDP_per_worker",
+                           unit = "Thousands",
+                           categories = "size_categories",
+                           output_dir = here::here("Output", output_dir))
+
+# General comparison bar charts ----- Merci, ChatGPT
+
+## GVA structure 2019, NOMINAL!!
+oe_india_gva <- oe_india %>%
+  mutate(GVATOTPPPN = as.numeric(GVATOTPPPN),
+         GVAAPPPN  = as.numeric(GVAAPPPN),
+         GVAGIR_UPPPN = as.numeric(GVAGIR_UPPPN),
+         GVAK_NPPPN = as.numeric(GVAK_NPPPN),
+         GVAB_FPPPN = as.numeric(GVAB_FPPPN),
+         GVAO_QPPPN = as.numeric(GVAO_QPPPN),
+         GVAHJPPPN = as.numeric(GVAHJPPPN),
+  ) %>%
+  mutate(Agriculture_GVA_Pct = GVAAPPPN / GVATOTPPPN
+         , Consumer_services_GVA_Pct = GVAGIR_UPPPN / GVATOTPPPN
+         , Financial_business_services_GVA_Pct = GVAK_NPPPN / GVATOTPPPN
+         , Industry_GVA_Pct = GVAB_FPPPN / GVATOTPPPN          
+         , Public_services_GVA_Pct =  GVAO_QPPPN / GVATOTPPPN 
+         , Transport_Information_Communic_Services_GVA_Pct =  GVAHJPPPN / GVATOTPPPN
+  ) # Decimal format
+
+
+oe_comparators_gva <-
+  add_group_category(oe_india_gva, 
+                     categories = mission_categories,
+                     var_col = "Location",
+                     new_col = "mission_categories",
+                     warn_unmapped = TRUE) %>% 
+  dplyr::filter(mission_categories != " ")
+
+oe_comparators2_gva <-
+  add_group_category(oe_india_gva, 
+                     categories = size_categories,
+                     var_col = "Location",
+                     new_col = "size_categories",
+                     warn_unmapped = TRUE) %>% 
+  dplyr::filter(size_categories != " ")
+
+
+create_visualizations_bar(oe_comparators_gva 
+                          , year_range = c(2019, 2019)
+                          , main_var = "GVA"
+                          , categories = "mission_categories"
+                          , output_dir = here::here("Output", output_dir)
+)
+
+create_visualizations_bar(oe_comparators2_gva 
+                          , year_range = c(2019, 2019)
+                          , main_var = "GVA"
+                          , categories = "size_categories"
+                          , output_dir = here::here("Output", output_dir)
+)
+
+## Employment structure 2019
+oe_india_emp <- oe_india %>%
+  mutate(Total_Emp = as.numeric(EMPTOTT),
+         Public_Services_Emp = as.numeric(EMPO_Q),
+         Industry_Emp = as.numeric(EMPB_F),
+         Financial_Business_Services_Emp = as.numeric(EMPK_N),
+         Consumer_Services_Emp = as.numeric(EMPGIR_U),
+         Agriculture_Emp = as.numeric(EMPA),
+         Transport_Information_Communic_Services_Emp = as.numeric(EMPHJ)) %>%
+  mutate(Public_Services_EMP_Pct = Public_Services_Emp / Total_Emp,
+         Industry_EMP_Pct = Industry_Emp / Total_Emp ,
+         Financial_Business_Services_EMP_Pct = Financial_Business_Services_Emp / Total_Emp,
+         Consumer_Services_EMP_Pct = Consumer_Services_Emp / Total_Emp,
+         Agriculture_EMP_Pct = Agriculture_Emp / Total_Emp,
+         Transport_Information_Communic_Services_EMP_Pct = Transport_Information_Communic_Services_Emp / Total_Emp)
+
+
+oe_comparators_emp <-
+  add_group_category(oe_india_emp, 
+                     categories = mission_categories,
+                     var_col = "Location",
+                     new_col = "mission_categories",
+                     warn_unmapped = TRUE) %>% 
+  dplyr::filter(mission_categories != " ")
+
+oe_comparators2_emp <-
+  add_group_category(oe_india_emp, 
+                     categories = size_categories,
+                     var_col = "Location",
+                     new_col = "size_categories",
+                     warn_unmapped = TRUE) %>% 
+  dplyr::filter(size_categories != " ")
+
+create_visualizations_bar(oe_comparators_emp 
+                          , year_range = c(2019, 2019)
+                          , main_var = "EMP"
+                          , categories = "mission_categories"
+                          , output_dir = here::here("Output", output_dir)
+)
+
+create_visualizations_bar(oe_comparators2_emp 
+                          , year_range = c(2019, 2019)
+                          , main_var = "EMP"
+                          , categories = "size_categories"
+                          , output_dir = here::here("Output", output_dir)
+)
+
+## GVA per worker structure 2019
+oe_india_gvapw <- oe_india %>%
+  mutate(GVATOTPPPN = as.numeric(GVATOTPPPN),
+         GVAAPPPN  = as.numeric(GVAAPPPN),
+         GVAGIR_UPPPN = as.numeric(GVAGIR_UPPPN),
+         GVAK_NPPPN = as.numeric(GVAK_NPPPN),
+         GVAB_FPPPN = as.numeric(GVAB_FPPPN),
+         GVAO_QPPPN = as.numeric(GVAO_QPPPN),
+         GVAHJPPPN = as.numeric(GVAHJPPPN),  #Mominal value
+  ) %>%
+  mutate(Total_Emp = as.numeric(EMPTOTT),
+         Public_Services_Emp = as.numeric(EMPO_Q),
+         Industry_Emp = as.numeric(EMPB_F),
+         Financial_Business_Services_Emp = as.numeric(EMPK_N),
+         Consumer_Services_Emp = as.numeric(EMPGIR_U),
+         Agriculture_Emp = as.numeric(EMPA),
+         Transport_Information_Communic_Services_Emp = as.numeric(EMPHJ)) %>%
+  mutate(Agriculture_GVApw_Pct = GVAAPPPN / Agriculture_Emp
+         , Consumer_services_GVApw_Pct = GVAGIR_UPPPN / Consumer_Services_Emp
+         , Financial_business_services_GVApw_Pct = GVAK_NPPPN / Financial_Business_Services_Emp
+         , Industry_GVApw_Pct = GVAB_FPPPN / Industry_Emp          
+         , Public_services_GVApw_Pct =  GVAO_QPPPN / Public_Services_Emp 
+         , Transport_Information_Communic_Services_GVApw_Pct =  GVAHJPPPN / Transport_Information_Communic_Services_Emp
+  ) # Decimal format
+
+
+oe_comparators_gvapw <-
+  add_group_category(oe_india_gvapw, 
+                     categories = mission_categories,
+                     var_col = "Location",
+                     new_col = "mission_categories",
+                     warn_unmapped = TRUE) %>% 
+  dplyr::filter(mission_categories != " ")
+
+oe_comparators2_gvapw <-
+  add_group_category(oe_india_gvapw, 
+                     categories = size_categories,
+                     var_col = "Location",
+                     new_col = "size_categories",
+                     warn_unmapped = TRUE) %>% 
+  dplyr::filter(size_categories != " ")
+
+create_visualizations_bar_dodge(oe_comparators_gvapw 
+                          , year_range = c(2019, 2019)
+                          , main_var = "GVApw"
+                          , categories = "mission_categories"
+                          , output_dir = here::here("Output", output_dir)
+)
+
+create_visualizations_bar_dodge(oe_comparators2_gvapw 
+                          , year_range = c(2019, 2019)
+                          , main_var = "GVApw"
+                          , categories = "size_categories"
+                          , output_dir = here::here("Output", output_dir)
+)
+
+# General comparison individual cities, I See 16 cities NOT 17 -----
+
+# Create a plot for each location
 
 ## Area chart of change of GVA structure over time. (2005-2021)
 
@@ -983,14 +1012,14 @@ growth_results <- calculate_top_growth(data_cities_list, top = 4, year_ini = 200
 
 ## Generate subset of cities
 rajasthan_comparators = list(
-  Jaipur_comparators  = c("Jaipur","Addis Ababa", "Kumasi", "Tashkent", "Faisalabad"),
+  Jaipur_comparators  = c("Jaipur","Addis Ababa", "Kumasi", "Faisalabad"),
   Jodhpur_comparators = c("Jodhpur","Phnom Penh","Cagayan de Oro", "Bandjarmasin", "Rajshahi"),
   Kota_comparators    = c("Kota","Kigali", "Mwanza", "Cagayan de Oro", "Kitwe")
   )
 
 
 jaipur_comparators = list(
-  Mining_comparators  = c("Jaipur", "Port Harcourt","Santa Cruz", "Quetta", "Urumqi, Xinjiang", "Arequipa", "Tyumen")
+  Mining_comparators  = c("Jaipur", "Port Harcourt","Santa Cruz", "Quetta", "Urumqi, Xinjiang", "Arequipa")
 )
 
 oe_comparators <-
@@ -1096,6 +1125,21 @@ create_visualizations_bar(oe_comparators2
                           , categories = "jaipur_comparators"
                           , output_dir = here::here("Output", output_dir))
 
+
+## GVA per worker structure 2019
+create_visualizations_bar_dodge(oe_comparators 
+                                , year_range = c(2019, 2019)
+                                , main_var = "GVApw"
+                                , categories = "rajasthan_comparators"
+                                , output_dir = here::here("Output", output_dir))
+
+create_visualizations_bar_dodge(oe_comparators2 
+                                , year_range = c(2019, 2019)
+                                , main_var = "GVApw"
+                                , categories = "jaipur_comparators"
+                                , output_dir = here::here("Output", output_dir))
+
+
 ## Individual cities
 all_cities <- unique(unlist(c(rajasthan_comparators, jaipur_comparators)))
 
@@ -1123,7 +1167,7 @@ filtered_data <- pollution_ucdb %>%
 
 table(filtered_data$Selected_cities)
 # Other Selected cities 
-# 10833              19 
+# 10833              17 
 
 table(filtered_data$India)
 # India Other 
@@ -1189,18 +1233,26 @@ plot_index <- function(index) {
 
 walk(index, plot_index)
 
-# Merge datasets
+# Merge datasets, require pollution_ucdb AND data_rankings_pollution_past!!! ee Congestion_indc.R lines 39733 first!!!
 pollution_data <- pollution_ucdb %>%
   left_join(data_rankings_pollution_past %>% filter(Year == 2019), by = c("Country" = "country", "Location" = "city_name")) %>% 
   filter(!is.na(pollution_index) |!is.na(exp_pollution_index)) %>% 
   mutate(Selected_cities = ifelse(Location %in% all_cities, "Selected cities", "Other"))%>% 
   mutate(India = ifelse(Country == "India", "India", "Other"))
 
+table(pollution_data$Selected_cities)
+# Other Selected cities 
+# 204               3 
+
+table(pollution_data$India)
+# India Other 
+# 36   171 
+
 index <- c("pollution_index", "exp_pollution_index")
 filtered_data <-  pollution_data 
 walk(index, plot_index)
 
-# Enviromenmtal exposure data, see Congestion_indc.R lines 39 first!!!
+# Enviromenmtal exposure data
 index <- c("CO2_per_capita", "GHG_per_capita", "NOx_per_capita", "PM2.5_mortality")
 filtered_data <-  pollution_data 
 walk(index, plot_index)
@@ -1302,5 +1354,4 @@ walk(index, plot_index)
 
 # Generate box plots for each index
 walk(index, ~plot_box(.x))
-
-
+.
