@@ -184,7 +184,7 @@ oe_data_shi <- oe_data %>%
     # , Region
     ,Transport_Information_Communic_Services_Emp_Pct, Agriculture_Emp_Pct, Consumer_Services_Emp_Pct
     ,Financial_Busines_Services_Emp_Pct, Industry_Emp_Pct, Public_Services_Emp_Pct
-    ,Agriculture_GVA_Pct, Consumer_services_GVA_Pct, Financial_business_services_GVA_Pct
+    ,Agriculture_GVA_Pct, Consumer_Services_GVA_Pct, Financial_Business_Services_GVA_Pct
     ,Industry_GVA_Pct, Public_Services_GVA_Pct, Transport_Information_Communic_Services_GVA_Pct
   ) %>% 
   dplyr::filter(!is.na(GDP_per_capita_PPP)) %>% 
