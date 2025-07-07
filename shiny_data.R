@@ -169,10 +169,10 @@ oe_data_shi <- oe_data %>%
                   , "GVAO_QPPPC"
                   , "GVAHJPPPC"),as.numeric)) %>%
   mutate(Agriculture_GVA_Pct = GVAAPPPC / GVATOTPPPC
-           , Consumer_services_GVA_Pct = GVAGIR_UPPPC / GVATOTPPPC
-           , Financial_business_services_GVA_Pct = GVAK_NPPPC / GVATOTPPPC
+           , Consumer_Services_GVA_Pct = GVAGIR_UPPPC / GVATOTPPPC
+           , Financial_Business_Services_GVA_Pct = GVAK_NPPPC / GVATOTPPPC
            , Industry_GVA_Pct = GVAB_FPPPC / GVATOTPPPC          
-           , Public_services_GVA_Pct =  GVAO_QPPPC / GVATOTPPPC 
+           , Public_Services_GVA_Pct =  GVAO_QPPPC / GVATOTPPPC 
            , Transport_Information_Communic_Services_GVA_Pct =  GVAHJPPPC / GVATOTPPPC
     ) %>% 
  # Variable selection ----------------------------------------------------------
@@ -185,17 +185,23 @@ oe_data_shi <- oe_data %>%
     ,Transport_Information_Communic_Services_Emp_Pct, Agriculture_Emp_Pct, Consumer_Services_Emp_Pct
     ,Financial_Busines_Services_Emp_Pct, Industry_Emp_Pct, Public_Services_Emp_Pct
     ,Agriculture_GVA_Pct, Consumer_services_GVA_Pct, Financial_business_services_GVA_Pct
-    ,Industry_GVA_Pct, Public_services_GVA_Pct, Transport_Information_Communic_Services_GVA_Pct
+    ,Industry_GVA_Pct, Public_Services_GVA_Pct, Transport_Information_Communic_Services_GVA_Pct
   ) %>% 
-  dplyr::filter(!is.na(GDP_per_capita_PPP))
+  dplyr::filter(!is.na(GDP_per_capita_PPP)) %>% 
+  dplyr::filter(if_all(-Location, ~!is.na(.)))
+
 
 # oe_data_shi %>% filter(is.na(WB_income_group)) %>% View() #Must be empty
+
+oe_data_shi %>% summarise(across(everything(), ~sum(is.na(.)))) 
+oe_data_shi %>% filter(if_any(-Location, is.na)) %>%
+                distinct(Location)
 
 # oe_data_shi$GDP_per_capita_PPP <- comma(oe_data_shi$GDP_per_capita_PPP * 1000, accuracy = 0.1) creates problems when plotting in shiny
 
 # Export data to shiny project
 
-save(oe_data_shi, file = here("Output", "shiny_data.RData"))
+save(oe_data_shi, file = here("Output", "shiny_data.RData")) #Last update 2025-07-07 
 save(built_ucdb, file = here("Output", "built_ucdb.RData"))
 
 
