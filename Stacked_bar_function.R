@@ -53,4 +53,8 @@ create_stacked_bar_plot <- function(data, year, variable, category_var = NULL,
     scale_fill_manual(values = wes_palette("Zissou1", n = nrow(plot_data), type = "continuous")) +
     scale_y_continuous(
       labels = scales::percent_format(scale = 1),
-      limits
+      limits = c(0, 100)
+    )
+  
+  
+  

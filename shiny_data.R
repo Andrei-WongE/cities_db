@@ -131,18 +131,19 @@ oe_data <- oe_data %>% filter(Country!=Location)
 
 oe_data_shi <- oe_data %>%
   # Filter the data for the required years (2011-2019)
-  filter(Year >= 2011 & Year <= 2019) %>%
+  filter(Year >= 2001 & Year <= 2021) %>%
   # Create comparator groups
-  mutate(Region2 = ifelse(Country %in% mena_countries, "MENA", "Other")) %>%
-  mutate(Comparators = case_when(
-    Country %in% country_groups$GCC ~ "GCC",
-    Country %in% country_groups$Maghreb ~ "Maghreb",
-    Country %in% country_groups$Mashreq ~ "Mashreq",
-    Country %in% mena_countries ~ "MENA",
-    TRUE ~ "Other"
-  )) %>%
-  left_join(comparators_ucdb, by = c("Country")) %>%
-    mutate(across(c("EMPO_Q"
+  # mutate(Region2 = ifelse(Country %in% mena_countries, "MENA", "Other")) %>%
+  # mutate(Comparators = case_when(
+  #   Country %in% country_groups$GCC ~ "GCC",
+  #   Country %in% country_groups$Maghreb ~ "Maghreb",
+  #   Country %in% country_groups$Mashreq ~ "Mashreq",
+  #   Country %in% mena_countries ~ "MENA",
+  #   TRUE ~ "Other"
+  # )) %>%
+  # left_join(comparators_ucdb, by = c("Country")) %>%
+  # Employment -----------------------------------------------------------------
+  mutate(across(c("EMPO_Q"
                   , "EMPB_F"
                   , "EMPK_N"
                   , "EMPGIR_U"
@@ -159,13 +160,36 @@ oe_data_shi <- oe_data %>%
     Agriculture_Emp_Pct = EMPA / EMPTOTT,
     Transport_Information_Communic_Services_Emp_Pct = EMPHJ / EMPTOTT
   ) %>% 
-  dplyr::select(Location, Country, Year, GDP_per_capita_PPP, Region2,Comparators, WB_income_group
-         , Region, Transport_Information_Communic_Services_Emp_Pct
-         ,Agriculture_Emp_Pct, Consumer_Services_Emp_Pct, Financial_Busines_Services_Emp_Pct
-         , Industry_Emp_Pct, Public_Services_Emp_Pct) %>% 
+  # GVA ------------------------------------------------------------------------
+  mutate(across(c("GVATOTPPPC"
+                  ,"GVAGIR_UPPPC"
+                  , "GVAAPPPC"
+                  , "GVAK_NPPPC"
+                  , "GVAB_FPPPC"
+                  , "GVAO_QPPPC"
+                  , "GVAHJPPPC"),as.numeric)) %>%
+  mutate(Agriculture_GVA_Pct = GVAAPPPC / GVATOTPPPC
+           , Consumer_services_GVA_Pct = GVAGIR_UPPPC / GVATOTPPPC
+           , Financial_business_services_GVA_Pct = GVAK_NPPPC / GVATOTPPPC
+           , Industry_GVA_Pct = GVAB_FPPPC / GVATOTPPPC          
+           , Public_services_GVA_Pct =  GVAO_QPPPC / GVATOTPPPC 
+           , Transport_Information_Communic_Services_GVA_Pct =  GVAHJPPPC / GVATOTPPPC
+    ) %>% 
+ # Variable selection ----------------------------------------------------------
+  dplyr::select(
+    Location, Country, Year, GDP_per_capita_PPP
+    # , Region2
+    # , Comparators
+    # , WB_income_group
+    # , Region
+    ,Transport_Information_Communic_Services_Emp_Pct, Agriculture_Emp_Pct, Consumer_Services_Emp_Pct
+    ,Financial_Busines_Services_Emp_Pct, Industry_Emp_Pct, Public_Services_Emp_Pct
+    ,Agriculture_GVA_Pct, Consumer_services_GVA_Pct, Financial_business_services_GVA_Pct
+    ,Industry_GVA_Pct, Public_services_GVA_Pct, Transport_Information_Communic_Services_GVA_Pct
+  ) %>% 
   dplyr::filter(!is.na(GDP_per_capita_PPP))
 
-oe_data_shi %>% filter(is.na(WB_income_group)) %>% View() #Must be empty
+# oe_data_shi %>% filter(is.na(WB_income_group)) %>% View() #Must be empty
 
 # oe_data_shi$GDP_per_capita_PPP <- comma(oe_data_shi$GDP_per_capita_PPP * 1000, accuracy = 0.1) creates problems when plotting in shiny
 

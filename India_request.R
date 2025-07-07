@@ -1139,12 +1139,6 @@ create_visualizations_bar_dodge(oe_comparators2
                                 , categories = "jaipur_comparators"
                                 , output_dir = here::here("Output", output_dir))
 
-create_visualizations_bar_dodge(oe_comparators2 
-                                , year_range = c(2019, 2019)
-                                , main_var = "GVApw"
-                                , categories = "jaipur_comparators"
-                                , output_dir = here::here("Output", output_dir))
-
 ## Individual cities
 all_cities <- unique(unlist(c(rajasthan_comparators, jaipur_comparators)))
 
